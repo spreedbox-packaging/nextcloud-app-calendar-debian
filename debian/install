@@ -1,0 +1,10 @@
+3rdparty/*	usr/lib/owncloud/www/apps/calendar/3rdparty
+ajax/*	usr/lib/owncloud/www/apps/calendar/ajax
+appinfo/*  usr/lib/owncloud/www/apps/calendar/appinfo
+css/*  usr/lib/owncloud/www/apps/calendar/css
+img/*  usr/lib/owncloud/www/apps/calendar/img
+js/*  usr/lib/owncloud/www/apps/calendar/js
+l10n/*  usr/lib/owncloud/www/apps/calendar/l10n
+lib/*  usr/lib/owncloud/www/apps/calendar/lib
+templates/*  usr/lib/owncloud/www/apps/calendar/templates
+*.php	usr/lib/owncloud/www/apps/calendar

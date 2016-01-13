@@ -1,0 +1,12 @@
+Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+
+Files: *
+Copyright: 2011 Jakob Sack <mail@jakobsack.de>,
+ 2011 Jan-Christoph Borchardt, http://jancborchardt.net,
+ 2012 Bart Visscher <bartv@thisnet.nl>,
+ 2012 Georg Ehrke <ownclouddev@georgswebsite.de>,
+ 2012 Michael Gapczynski <mtgap@owncloud.com>,
+ 2012 Thomas Tanghus (thomas@tanghus.net),
+ 2013 Lukas Reschke <lukas@statuscode.ch>,
+ 2013 Visitha Baddegama <visithauom@gmail.com>
+License: AGPL-3+

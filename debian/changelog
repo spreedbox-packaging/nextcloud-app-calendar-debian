@@ -1,0 +1,5 @@
+owncloud-app-calendar (0.8.1) trusty; urgency=low
+
+  * Initial packaged release.
+
+ -- Joachim Bauch <bauch@struktur.de>  Wed, 13 Jan 2016 16:03:18 +0100

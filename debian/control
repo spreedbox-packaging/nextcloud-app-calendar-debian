@@ -1,0 +1,20 @@
+Source: owncloud-app-calendar
+Section: web
+Priority: extra
+Maintainer: struktur AG <opensource@struktur.de>
+Uploaders:
+ Joachim Bauch <bauch@struktur.de>
+Build-Depends:
+ debhelper (>= 9)
+Standards-Version: 3.9.5
+
+Package: owncloud-app-calendar
+Architecture: all
+Depends:
+ ${misc:Depends},
+ owncloud-server
+Description: Owncloud calendar app
+ This package installs the Owncloud calendar app.
+ .
+ The ownCloud Calendar app enables you to create and edit events, synchronize
+ to other calendars you might use, and create new, personalized calendars.
