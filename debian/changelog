@@ -1,3 +1,15 @@
+owncloud-app-calendar (0.8.2-1) trusty; urgency=low
+
+  * Run "occ upgrade" from postinst for automatic updates (FS#3326).
+  * Also check for owncloud config to avoid updating on image building (which will fail).
+  * Only run upgrade if config.php is not empty.
+  * Added license information for packaging + license text.
+  * Don't log something about "occ upgrade" if owncloud is not setup yet (FS#3484).
+  * Use pristine-tar.
+  * Imported Upstream version 0.8.2
+
+ -- Joachim Bauch <bauch@struktur.de>  Thu, 24 Mar 2016 09:35:17 +0100
+
 owncloud-app-calendar (0.8.1) trusty; urgency=low
 
   * Initial packaged release.
