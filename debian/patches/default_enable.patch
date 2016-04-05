@@ -1,0 +1,10 @@
+--- a/appinfo/info.xml
++++ b/appinfo/info.xml
+@@ -4,6 +4,7 @@
+ 	<name>Calendar</name>
+ 	<licence>AGPL</licence>
+ 	<author>Georg Ehrke, Bart Visscher, Jakob Sack</author>
++	<default_enable/>
+ 	<require>8</require>
+ 	<dependencies>
+ 		<owncloud min-version="8.1" max-version="8.2" />
