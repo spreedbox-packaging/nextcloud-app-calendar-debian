@@ -1,3 +1,9 @@
+owncloud-app-calendar (0.8.2-2) trusty; urgency=low
+
+  * Enable app by default (FS#3526).
+
+ -- Joachim Bauch <bauch@struktur.de>  Tue, 05 Apr 2016 17:34:36 +0200
+
 owncloud-app-calendar (0.8.2-1) trusty; urgency=low
 
   * Run "occ upgrade" from postinst for automatic updates (FS#3326).
