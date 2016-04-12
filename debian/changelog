@@ -1,3 +1,10 @@
+owncloud-app-calendar (1.0.0-1) trusty; urgency=low
+
+  * Imported Upstream version 1.0.0
+  * App now requires ownCloud 9.0.0 or newer.
+
+ -- Joachim Bauch <bauch@struktur.de>  Tue, 12 Apr 2016 16:41:06 +0200
+
 owncloud-app-calendar (0.8.2-2) trusty; urgency=low
 
   * Enable app by default (FS#3526).
