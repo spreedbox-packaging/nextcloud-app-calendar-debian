@@ -15,23 +15,23 @@ case "$1" in
         if [ -e "/etc/init.d/php5-fpm" ]; then
             invoke php5-fpm restart || true
         fi
-        if [ -s "/etc/owncloud/config.php" ]; then
-            if [ -x "/usr/bin/occ" ]; then
+        if [ -s "/etc/nextcloud/config.php" ]; then
+            if [ -x "/usr/bin/occ.nextcloud" ]; then
                 set +e
-                /usr/bin/occ upgrade
+                /usr/bin/occ.nextcloud upgrade
                 rc=$?
                 set -e
                 if [ "$rc" != "0" ] && [ "$rc" != "3" ]; then
                     echo "****************************************************************"
-                    echo "** Automatic update failed, please run 'occ upgrade' manually **"
+                    echo "** Automatic update failed, please run 'occ.nextcloud upgrade' manually **"
                     echo "** after the installation to finish upgrading the calendar    **"
-                    echo "** ownCloud application!                                      **"
+                    echo "** Nextcloud application!                                     **"
                     echo "****************************************************************"
                 fi
             else
                 echo "***************************************************************"
-                echo "** Please run 'occ upgrade' after the installation to finish **"
-                echo "** upgrading the calendar ownCloud application!              **"
+                echo "** Please run 'occ.nextcloud upgrade' after the installation to finish **"
+                echo "** upgrading the calendar Nextcloud application!             **"
                 echo "***************************************************************"
             fi
         fi

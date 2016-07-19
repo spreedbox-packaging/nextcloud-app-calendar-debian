@@ -1,8 +1,8 @@
-appinfo/*  usr/lib/owncloud/www/apps/calendar/appinfo
-controller/*  usr/lib/owncloud/www/apps/calendar/controller
-css/*  usr/lib/owncloud/www/apps/calendar/css
-img/*  usr/lib/owncloud/www/apps/calendar/img
-js/*  usr/lib/owncloud/www/apps/calendar/js
-l10n/*  usr/lib/owncloud/www/apps/calendar/l10n
-templates/*  usr/lib/owncloud/www/apps/calendar/templates
-timezones/*  usr/lib/owncloud/www/apps/calendar/timezones
+appinfo/*  usr/lib/nextcloud/www/apps/calendar/appinfo
+controller/*  usr/lib/nextcloud/www/apps/calendar/controller
+css/*  usr/lib/nextcloud/www/apps/calendar/css
+img/*  usr/lib/nextcloud/www/apps/calendar/img
+js/*  usr/lib/nextcloud/www/apps/calendar/js
+l10n/*  usr/lib/nextcloud/www/apps/calendar/l10n
+templates/*  usr/lib/nextcloud/www/apps/calendar/templates
+timezones/*  usr/lib/nextcloud/www/apps/calendar/timezones

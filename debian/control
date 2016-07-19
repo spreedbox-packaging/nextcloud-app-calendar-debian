@@ -1,21 +1,22 @@
-Source: owncloud-app-calendar
+Source: nextcloud-app-calendar
 Section: web
-Priority: extra
+Priority: optional
 Maintainer: struktur AG <opensource@struktur.de>
 Uploaders:
- Joachim Bauch <bauch@struktur.de>
+ Joachim Bauch <bauch@struktur.de>,
+ Simon Eisenmann <simon@struktur.de>
 Build-Depends:
  debhelper (>= 9),
  quilt
 Standards-Version: 3.9.5
 
-Package: owncloud-app-calendar
+Package: nextcloud-app-calendar
 Architecture: all
 Depends:
  ${misc:Depends},
- owncloud-server (>= 9.0.0)
-Description: Owncloud calendar app
- This package installs the Owncloud calendar app.
+ nextcloud-server
+Description: Calendar app for Nextcloud
+ This package installs the calendar app for Nextcloud.
  .
  The ownCloud Calendar app enables you to create and edit events, synchronize
  to other calendars you might use, and create new, personalized calendars.
