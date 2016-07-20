@@ -1,3 +1,9 @@
+nextcloud-app-calendar (1.2.2-2) trusty; urgency=medium
+
+  * Mark calendar as shipped
+
+ -- Simon Eisenmann <simon@struktur.de>  Wed, 20 Jul 2016 09:43:09 +0200
+
 nextcloud-app-calendar (1.2.2-1) trusty; urgency=medium
 
   * Imported Upstream version 1.2.2
