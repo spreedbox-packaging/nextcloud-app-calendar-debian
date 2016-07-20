@@ -1,3 +1,9 @@
+nextcloud-app-calendar (1.2.2-3) trusty; urgency=medium
+
+  * Add trigger for shipped
+
+ -- Simon Eisenmann <simon@struktur.de>  Wed, 20 Jul 2016 13:20:16 +0200
+
 nextcloud-app-calendar (1.2.2-2) trusty; urgency=medium
 
   * Mark calendar as shipped
