@@ -2,6 +2,8 @@
 
 export PATH=$PATH:/sbin:/usr/sbin:/bin:/usr/bin
 
+export OCC=/usr/bin/occ.nextcloud
+
 invoke() {
     if [ -x /usr/sbin/invoke-rc.d ]; then
         invoke-rc.d $1 $2
@@ -10,15 +12,24 @@ invoke() {
     fi
 }
 
+mark_shipped() {
+    if [ -x "/usr/share/spreedbox-nextcloud/spreedbox-mark-shipped" ]; then
+        /usr/share/spreedbox-nextcloud/spreedbox-mark-shipped calendar
+    fi
+}
+
 case "$1" in
     configure)
+        if [ -e "/usr/lib/nextcloud/www/core/shipped.json" ]; then
+            mark_shipped
+        fi
         if [ -e "/etc/init.d/php5-fpm" ]; then
             invoke php5-fpm restart || true
         fi
         if [ -s "/etc/nextcloud/config.php" ]; then
-            if [ -x "/usr/bin/occ.nextcloud" ]; then
+            if [ -x "$OCC" ]; then
                 set +e
-                /usr/bin/occ.nextcloud upgrade
+                $OCC upgrade
                 rc=$?
                 set -e
                 if [ "$rc" != "0" ] && [ "$rc" != "3" ]; then
