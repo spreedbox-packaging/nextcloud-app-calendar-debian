@@ -1,6 +1,6 @@
 <?php
 /**
- * ownCloud - Calendar App
+ * Calendar App
  *
  * @author Raghu Nayyar
  * @author Georg Ehrke
@@ -22,12 +22,12 @@
  *
  */
 ?>
-<div 
-	ui-calendar="uiConfig.calendar"
-	id="fullcalendar" class="calendar"
-	calendar="calendar"
-	ng-model="eventSources"
+<div
+	class="calendar"
 	data-appVersion="<?php p($_['appVersion']); ?>"
 	data-defaultView="<?php p($_['defaultView']); ?>"
-	data-emailAddress="<?php p($_['emailAddress']); ?>">
+	data-emailAddress="<?php p($_['emailAddress']); ?>"
+	data-skipPopover="<?php p($_['skipPopover']); ?>"
+	fc
+	id="fullcalendar">
 </div>

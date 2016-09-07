@@ -1,6 +1,6 @@
 <?php
 /**
- * ownCloud - Calendar App
+ * Calendar App
  *
  * @author Georg Ehrke
  * @copyright 2016 Georg Ehrke <oc.list@georgehrke.com>
@@ -26,7 +26,6 @@ namespace OCA\Calendar\Controller;
 use OC\AppFramework\Http;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\DataDisplayResponse;
-use OCP\AppFramework\Http\JSONResponse;
 use OCP\AppFramework\Http\NotFoundResponse;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\IConfig;
@@ -65,8 +64,14 @@ class ViewController extends Controller {
 	 * @return TemplateResponse
 	 */
 	public function index() {
+		$runningOn = $this->config->getSystemValue('version');
+		$runningOnServer91OrLater = version_compare($runningOn, '9.1', '>=');
+
+		$supportsClass = $runningOnServer91OrLater;
+		$assetPipelineBroken = !$runningOnServer91OrLater;
+
 		$isAssetPipelineEnabled = $this->config->getSystemValue('asset-pipeline.enabled', false);
-		if ($isAssetPipelineEnabled) {
+		if ($isAssetPipelineEnabled && $assetPipelineBroken) {
 			return new TemplateResponse('calendar', 'main-asset-pipeline-unsupported');
 		}
 
@@ -76,11 +81,14 @@ class ViewController extends Controller {
 
 		$appVersion = $this->config->getAppValue($this->appName, 'installed_version');
 		$defaultView = $this->config->getUserValue($userId, $this->appName, 'currentView', 'month');
-
+		$skipPopover = $this->config->getUserValue($userId, $this->appName, 'skipPopover', 'no');
+		
 		return new TemplateResponse('calendar', 'main', [
 			'appVersion' => $appVersion,
 			'defaultView' => $defaultView,
 			'emailAddress' => $emailAddress,
+			'skipPopover' => $skipPopover,
+			'supportsClass' => $supportsClass
 		]);
 	}
 
