@@ -1,6 +1,6 @@
 <?php
 /**
- * ownCloud - Calendar App
+ * Calendar App
  *
  * @author Raghu Nayyar
  * @author Georg Ehrke
@@ -24,12 +24,7 @@
 $styles = [
 	'../js/vendor/fullcalendar/dist/fullcalendar',
 	'../js/vendor/jquery-timepicker/jquery.ui.timepicker',
-	'globals',
-	'calendar',
-	'calendarlist',
-	'datepicker',
-	'eventdialog',
-	'settings'
+	'public/app'
 ];
 
 foreach ($styles as $style) {
@@ -41,10 +36,8 @@ $scripts = [
 	'vendor/ical.js/build/ical',
 	'vendor/jstzdetect/jstz.min',
 	'vendor/angular/angular',
-	'vendor/angular-route/angular-route',
 	'vendor/angular-bootstrap/ui-bootstrap.min',
 	'vendor/angular-bootstrap/ui-bootstrap-tpls.min',
-	'vendor/angular-ui-calendar/src/calendar',
 	'vendor/fullcalendar/dist/fullcalendar',
 	'vendor/fullcalendar/dist/lang-all',
 	'vendor/davclient.js/lib/client',
