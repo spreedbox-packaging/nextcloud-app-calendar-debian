@@ -14,7 +14,8 @@ Package: nextcloud-app-calendar
 Architecture: all
 Depends:
  ${misc:Depends},
- nextcloud-server
+ nextcloud-server,
+ spreedbox-php (>= 0.1.1)
 Description: Calendar app for Nextcloud
  This package installs the calendar app for Nextcloud.
  .
