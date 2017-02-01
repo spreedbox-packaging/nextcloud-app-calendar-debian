@@ -5,7 +5,7 @@
  *
  * @author Raghu Nayyar
  * @author Georg Ehrke
- * @copyright 2016 Raghu Nayyar <beingminimal@gmail.com>
+ * @copyright 2016 Raghu Nayyar <hey@raghunayyar.com>
  * @copyright 2016 Georg Ehrke <oc.list@georgehrke.com>
  *
  * This library is free software; you can redistribute it and/or
@@ -30,14 +30,14 @@
 		class="new-entity"
 		data-apps-slide-toggle=".add-new"
 		id="new-calendar-button">
-		<span class="new-entity-title"><?php p($l->t('New Calendar')); ?></span>
+		<span class="new-entity-title" role="button"><?php p($l->t('New Calendar')); ?></span>
 	</div>
 
 
 
 	<fieldset class="calendarlist-fieldset add-new hide">
 		<form ng-submit="create(newCalendarInputVal,selected)">
-			<input class="app-navigation-input" type="text" ng-model="newCalendarInputVal" autofocus />
+			<input class="app-navigation-input" type="text" ng-model="newCalendarInputVal" autofocus placeholder="<?php p($l->t('Name')); ?>"/>
 			<colorpicker class="colorpicker" selected="selected"></colorpicker>
 			<button
 				id="submitnewCalendar"
