@@ -1,0 +1,3 @@
+version=2
+opts=filenamemangle=s|.+\/v?(\d+\.\d+\.\d+)/calendar\.tar\.gz|nextcloud-app-calendar-$1\.tar\.gz| \
+  https://github.com/nextcloud/calendar/releases .*/v?(\d+\.\d+\.\d+)/calendar\.tar\.gz
