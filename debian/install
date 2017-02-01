@@ -1,6 +1,7 @@
 appinfo/*  usr/lib/nextcloud/www/apps/calendar/appinfo
 controller/*  usr/lib/nextcloud/www/apps/calendar/controller
 css/*  usr/lib/nextcloud/www/apps/calendar/css
+http/*  usr/lib/nextcloud/www/apps/calendar/http
 img/*  usr/lib/nextcloud/www/apps/calendar/img
 js/*  usr/lib/nextcloud/www/apps/calendar/js
 l10n/*  usr/lib/nextcloud/www/apps/calendar/l10n
