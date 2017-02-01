@@ -73,6 +73,10 @@ class SettingsController extends Controller {
 				return $this->getView();
 			case 'skipPopover':
 				return $this->getSkipPopover();
+			case 'showWeekNr':
+				return $this->getShowWeekNr();
+			case 'firstRun':
+				return $this->getFirstRun();
 			default:
 				return new JSONResponse([], Http::STATUS_BAD_REQUEST);
 		}
@@ -93,6 +97,10 @@ class SettingsController extends Controller {
 				return $this->setView($value);
 			case 'skipPopover':
 				return $this->setSkipPopover($value);
+			case 'showWeekNr':
+				return $this->setShowWeekNr($value);
+			case 'firstRun':
+				return $this->setFirstRun();
 			default:
 				return new JSONResponse([], Http::STATUS_BAD_REQUEST);
 		}
@@ -223,5 +231,109 @@ class SettingsController extends Controller {
 		];
 
 		return in_array($value, $allowedValues);
+	}
+
+	/**
+	 * set config value for showing week numbers
+	 *
+	 * @param $value
+	 * @return JSONResponse
+	 */
+	private function setShowWeekNr($value) {
+		if (!$this->isShowWeekNrValueAllowed($value)) {
+			return new JSONResponse([], Http::STATUS_UNPROCESSABLE_ENTITY);
+		}
+
+		try {
+			$this->config->setUserValue(
+				$this->userId,
+				$this->appName,
+				'showWeekNr',
+				$value
+			);
+		} catch(\Exception $e) {
+			return new JSONResponse([], Http::STATUS_INTERNAL_SERVER_ERROR);
+		}
+
+		return new JSONResponse();
+	}
+
+	/**
+	 * get config value for showing week numbers
+	 *
+	 * @return JSONResponse
+	 */
+	private function getShowWeekNr() {
+		try {
+			$value = $this->config->getUserValue(
+				$this->userId,
+				$this->appName,
+				'showWeekNr',
+				'no'
+			);
+		} catch(\Exception $e) {
+			return new JSONResponse([], Http::STATUS_INTERNAL_SERVER_ERROR);
+		}
+
+		return new JSONResponse([
+			'value' => $value,
+		]);
+	}
+
+	/**
+	 * check if value for showWeekNr is allowed
+	 *
+	 * @param $value
+	 * @return bool
+	 */
+	private function isShowWeekNrValueAllowed($value) {
+		$allowedValues = [
+			'yes',
+			'no'
+		];
+
+		return in_array($value, $allowedValues);
+	}
+
+	/**
+	 * remember that first run routines executed
+	 *
+	 * @return JSONResponse
+	 */
+	private function setFirstRun() {
+		try {
+			$this->config->setUserValue(
+				$this->userId,
+				$this->appName,
+				'firstRun',
+				'no'
+			);
+		} catch(\Exception $e) {
+			return new JSONResponse([], Http::STATUS_INTERNAL_SERVER_ERROR);
+		}
+
+		return new JSONResponse();
+	}
+
+	/**
+	 * get stored value for first run
+	 *
+	 * @return JSONResponse
+	 */
+	private function getFirstRun() {
+		try {
+			$value = $this->config->getUserValue(
+				$this->userId,
+				$this->appName,
+				'firstRun',
+				'yes'
+			);
+		} catch(\Exception $e) {
+			return new JSONResponse([], Http::STATUS_INTERNAL_SERVER_ERROR);
+		}
+
+		return new JSONResponse([
+			'value' => $value,
+		]);
 	}
 }

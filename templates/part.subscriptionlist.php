@@ -4,7 +4,7 @@
  *
  * @author Raghu Nayyar
  * @author Georg Ehrke
- * @copyright 2016 Raghu Nayyar <beingminimal@gmail.com>
+ * @copyright 2016 Raghu Nayyar <hey@raghunayyar.com>
  * @copyright 2016 Georg Ehrke <oc.list@georgehrke.com>
  *
  * This library is free software; you can redistribute it and/or
@@ -23,7 +23,7 @@
  */
 ?>
 <ul class="app-navigation-list subscription-list">
-	<!--<div ng-class="{'icon-loading-small': is.loading}"></div>-->
+	<div ng-class="{'icon-loading-small': is.loading}"></div>
 	<li ng-repeat="item in calendarListItems | orderBy: item.calendar.order | subscriptionListFilter" class="app-navigation-list-item" ng-class="{active: item.calendar.enabled}">
 		<?php print_unescaped($this->inc('part.calendarlist.item')); ?>
 	</li>
