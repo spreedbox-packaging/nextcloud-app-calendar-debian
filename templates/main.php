@@ -31,8 +31,7 @@ if($_['isPublic']) {
 	OCP\Util::addHeader('meta', ['property' => "og:image", 'content' => $_['previewImage']]);
 }
 $styles = [
-	'../js/vendor/fullcalendar/dist/fullcalendar',
-	'../js/vendor/jquery-timepicker/jquery.ui.timepicker',
+	'public/vendor.min',
 	'public/app.min'
 ];
 
@@ -40,23 +39,18 @@ foreach ($styles as $style) {
 	style('calendar', $style);
 }
 
-$scripts = [
-	'vendor/jquery-timepicker/jquery.ui.timepicker',
-	'vendor/ical.js/build/ical',
-	'vendor/jstzdetect/jstz',
-	'vendor/angular/angular',
-	'vendor/angular-bootstrap/ui-bootstrap',
-	'vendor/angular-bootstrap/ui-bootstrap-tpls',
-	'vendor/fullcalendar/dist/fullcalendar',
-	'vendor/fullcalendar/dist/locale-all',
-	'vendor/davclient.js/lib/client',
-	'vendor/hsl_rgb_converter/converter',
-	'public/app.min'
-];
-
+$scripts = [];
+if ($_['isIE']) {
+	$scripts[] = 'public/vendor.ie.min';
+} else {
+	$scripts[] = 'public/vendor.min';
+}
 if ($_['needsAutosize']) {
 	$scripts[] = 'vendor/autosize/dist/autosize';
 }
+
+$scripts[] = 'public/app.min';
+
 
 foreach ($scripts as $script) {
 	script('calendar', $script);
@@ -112,6 +106,18 @@ foreach ($scripts as $script) {
 
 	<script type="text/ng-template" id="eventssidebareditor.html">
 		<?php print_unescaped($this->inc('editor.sidebar')); ?>
+	</script>
+
+	<script type="text/ng-template" id="confirmation.html">
+		<button	class="confirmation-default">
+			<span class="icon-delete svg"></span>
+			<span><?php p($l->t('Delete')); ?></span>
+		</button>
+		<span class="confirmation-abort icon-close svg" title="<?php p($l->t('Cancel')); ?>">
+		</span>
+		<span class="confirmation-confirm icon-delete-white svg no-permission">
+    		<span class="countdown">3</span>
+		</span>
 	</script>
 
 	<?php if(!$_['isPublic']): ?>
