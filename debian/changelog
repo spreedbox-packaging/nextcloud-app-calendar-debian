@@ -1,3 +1,9 @@
+nextcloud-app-calendar (1.5.1-1) trusty; urgency=medium
+
+  * Imported Upstream version 1.5.1
+
+ -- Joachim Bauch <bauch@struktur.de>  Wed, 01 Mar 2017 08:23:00 +0100
+
 nextcloud-app-calendar (1.5.0-1) trusty; urgency=medium
 
   * Added uscan watch file.
