@@ -43,7 +43,7 @@
 		<button name="app settings"
 			class="settings-button"
 			data-apps-slide-toggle="#app-settings-content">
-			<?php p($l->t('Settings')); ?>
+			<?php p($l->t('Subscribe & embed')); ?>
 		</button>
 	</div>
 
@@ -54,7 +54,7 @@
 					<div class="davbuttons">
 						<div class="btn-group">
 							<button class="button first" ng-model="$parent.publicdav" uib-btn-radio="'CalDAV'">CalDAV</button>
-							<button class="button last" ng-model="$parent.publicdav" uib-btn-radio="'WebDAV'">WebDAV</button>
+							<button class="button last" ng-model="$parent.publicdav" uib-btn-radio="'iCal feed'">iCal feed</button>
 						</div>
 					</div>
 					<label>{{ $parent.publicdavdesc }}</label>
