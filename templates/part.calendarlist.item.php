@@ -49,7 +49,7 @@
 		  ng-class="{'withitems': item.calendar.isShared() || item.calendar.isPublished() }">
 		<span
 			class="calendarlist-icon share permanent"
-			ng-class="{'icon-shared': item.calendar.isShared() && !item.calendar.isPublished(), 'icon-public': item.calendar.isPublished(), 'icon-share': !item.calendar.isShared() && !item.calendar.isPublished()}"
+			ng-class="{'icon-shared shared-style': item.calendar.isShared() && !item.calendar.isPublished(), 'icon-public': item.calendar.isPublished(), 'icon-shared': !item.calendar.isShared() && !item.calendar.isPublished()}"
 			ng-click="item.toggleEditingShares()"
 			ng-if="item.showSharingIcon()"
 			title="<?php p($l->t('Share Calendar')) ?>"
@@ -155,6 +155,7 @@
 		   type="text"
 		   typeahead-on-select="onSelectSharee($item, $model, $label, item.calendar)"
 		   typeahead-loading="loadingSharees"
+		   typeahead-template-url="customShareMatchTemplate.html"
 		   uib-typeahead="sharee.display for sharee in findSharee($viewValue, item.calendar)">
 	<ul class="calendar-share-list">
 		<li class="calendar-share-item"
@@ -225,7 +226,7 @@
 			<span><?php p($l->t('Public access')); ?></span>
 			<span class="icon-public pull-right svg publication-tools"
 				  target="_blank"
-				  ng-href="item.calendar.publicurl"
+				  ng-href="item.publicSharingURL"
 				  ng-click="goPublic(item)"></span>
 			<span class="icon-mail pull-right svg publication-tools"
 				  target="_blank"

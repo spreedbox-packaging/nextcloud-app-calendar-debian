@@ -41,6 +41,9 @@ app.config(['$provide', '$httpProvider', function ($provide, $httpProvider) {
 	var isPublic = angular.element('#fullcalendar').attr('data-isPublic') === '1';
 	$provide.constant('isPublic', isPublic);
 
+	var isEmbedded = angular.element('#fullcalendar').attr('data-isEmbedded') === '1';
+	$provide.constant('isEmbedded', isEmbedded);
+
 	var isSharingAPI = _typeof(OC.Share) === 'object';
 	$provide.constant('isSharingAPI', isSharingAPI);
 
@@ -53,12 +56,18 @@ app.config(['$provide', '$httpProvider', function ($provide, $httpProvider) {
 	var fallbackColor = angular.element('#fullcalendar').attr('data-defaultColor');
 	var needsWebCalWorkaround = angular.element('#fullcalendar').attr('data-webCalWorkaround') === 'yes';
 	var version = angular.element('#fullcalendar').attr('data-appVersion');
+	var publicSharingToken = angular.element('#fullcalendar').attr('data-publicSharingToken');
+	var shareeCanEditShares = angular.element('#fullcalendar').attr('data-shareeCanEditShares') === 'yes';
+	var shareeCanEditCalendarProperties = angular.element('#fullcalendar').attr('data-shareeCanEditCalendarProperties') === 'yes';
 	$provide.constant('constants', {
 		initialView: initialView,
 		emailAddress: emailAddress,
 		fallbackColor: fallbackColor,
 		needsWebCalWorkaround: needsWebCalWorkaround,
 		version: version,
+		publicSharingToken: publicSharingToken,
+		shareeCanEditShares: shareeCanEditShares,
+		shareeCanEditCalendarProperties: shareeCanEditCalendarProperties,
 		SHARE_TYPE_USER: 0,
 		SHARE_TYPE_GROUP: 1
 	});
@@ -67,37 +76,24 @@ app.config(['$provide', '$httpProvider', function ($provide, $httpProvider) {
 
 
 app.run(['$document', '$rootScope', '$window', 'isPublic', function ($document, $rootScope, $window, isPublic) {
-	'use strict';
+  'use strict';
 
-	var origin = $window.location.origin;
-	var pathname = $window.location.pathname;
-	var endsWithSlash = pathname.substr(-1) === '/';
+  var origin = $window.location.origin;
+  $rootScope.root = origin + OC.linkTo('calendar', 'index.php') + '/';
+  $rootScope.baseUrl = $rootScope.root + 'v1/';
 
-	if (pathname.lastIndexOf('/calendar/public/') === -1) {
-		$rootScope.baseUrl = origin + pathname;
-		if (!endsWithSlash) {
-			$rootScope.baseUrl += '/';
-		}
-	} else {
-		var calendarPathname = pathname.substr(0, pathname.lastIndexOf('/calendar/public/')) + '/calendar/';
-		$rootScope.baseUrl = origin + calendarPathname;
-	}
+  try {
+    if (!isPublic) {
+      var webcalHandler = $rootScope.root + '#subscribe_to_webcal?url=%s';
+      navigator.registerProtocolHandler('webcal', webcalHandler, 'Nextcloud calendar');
+    }
+  } catch (e) {
+    console.log(e);
+  }
 
-	var root = $rootScope.baseUrl;
-	$rootScope.baseUrl += 'v1/';
-
-	try {
-		if (!isPublic) {
-			var webcalHandler = root + '#subscribe_to_webcal?url=%s';
-			navigator.registerProtocolHandler('webcal', webcalHandler, 'Nextcloud calendar');
-		}
-	} catch (e) {
-		console.log(e);
-	}
-
-	$document.click(function (event) {
-		$rootScope.$broadcast('documentClicked', event);
-	});
+  $document.click(function (event) {
+    $rootScope.$broadcast('documentClicked', event);
+  });
 }]);
 'use strict';
 
@@ -195,7 +191,7 @@ app.controller('AttendeeController', ["$scope", "AutoCompletionService", functio
 
 
 
-app.controller('CalController', ['$scope', 'Calendar', 'CalendarService', 'VEventService', 'SettingsService', 'TimezoneService', 'VEvent', 'is', 'fc', 'EventsEditorDialogService', 'PopoverPositioningUtility', '$window', 'isPublic', function ($scope, Calendar, CalendarService, VEventService, SettingsService, TimezoneService, VEvent, is, fc, EventsEditorDialogService, PopoverPositioningUtility, $window, isPublic) {
+app.controller('CalController', ['$scope', 'Calendar', 'CalendarService', 'VEventService', 'SettingsService', 'TimezoneService', 'VEvent', 'is', 'fc', 'EventsEditorDialogService', 'PopoverPositioningUtility', '$window', 'isPublic', 'constants', function ($scope, Calendar, CalendarService, VEventService, SettingsService, TimezoneService, VEvent, is, fc, EventsEditorDialogService, PopoverPositioningUtility, $window, isPublic, constants) {
 	'use strict';
 
 	is.loading = true;
@@ -291,13 +287,13 @@ app.controller('CalController', ['$scope', 'Calendar', 'CalendarService', 'VEven
 			$scope.$apply();
 		});
 	} else {
-		var url = $window.location.toString();
-		var token = url.substr(url.lastIndexOf('/') + 1);
-
-		$scope.calendarsPromise = CalendarService.getPublicCalendar(token).then(function (calendar) {
+		$scope.calendarsPromise = CalendarService.getPublicCalendar(constants.publicSharingToken).then(function (calendar) {
 			$scope.calendars = [calendar];
 			is.loading = false;
 			$scope.$apply();
+		}).catch(function (reason) {
+			angular.element('#header-right').css('display', 'none');
+			angular.element('#emptycontent-container').css('display', 'block');
 		});
 	}
 
@@ -422,7 +418,7 @@ app.controller('CalController', ['$scope', 'Calendar', 'CalendarService', 'VEven
 			if (newView === 'agendaDay') {
 				angular.element('td.fc-state-highlight').css('background-color', '#ffffff');
 			} else {
-				angular.element('.fc-bg td.fc-state-highlight').css('background-color', '#ffc');
+				angular.element('.fc-bg td.fc-state-highlight').css('background-color', '#ffa');
 			}
 			if (newView === 'agendaWeek') {
 				element.fullCalendar('option', 'aspectRatio', 0.1);
@@ -510,6 +506,11 @@ app.controller('CalendarListController', ['$scope', '$rootScope', '$window', 'Ha
 		WebCalService.get(url).then(function (splittedICal) {
 			var color = splittedICal.color || ColorUtility.randomColor();
 			var name = splittedICal.name || url;
+
+			if (name.length > 100) {
+				name = name.substr(0, 100);
+			}
+
 			CalendarService.createWebCal(name, color, url).then(function (calendar) {
 				angular.element('#new-subscription-button').click();
 				$scope.calendars.push(calendar);
@@ -536,7 +537,7 @@ app.controller('CalendarListController', ['$scope', '$rootScope', '$window', 'Ha
 	};
 
 	$scope.integration = function (item) {
-		return '<iframe width="400" height="215" src="' + item.calendar.publicurl + '"></iframe>';
+		return '<iframe width="400" height="215" src="' + item.publicEmbedURL + '"></iframe>';
 	};
 
 	$scope.$watch('publicdav', function (newvalue) {
@@ -558,7 +559,7 @@ app.controller('CalendarListController', ['$scope', '$rootScope', '$window', 'Ha
 
 	$scope.sendMail = function (item) {
 		item.toggleSendingMail();
-		MailerService.sendMail(item.email, item.calendar.publicurl, item.calendar.displayname).then(function (response) {
+		MailerService.sendMail(item.email, item.publicSharingURL, item.calendar.displayname).then(function (response) {
 			if (response.status === 200) {
 				item.email = '';
 				OC.Notification.showTemporary(t('calendar', 'EMail has been sent.'));
@@ -569,7 +570,7 @@ app.controller('CalendarListController', ['$scope', '$rootScope', '$window', 'Ha
 	};
 
 	$scope.goPublic = function (item) {
-		$window.open(item.calendar.publicurl);
+		$window.open(item.publicSharingURL);
 	};
 
 	$scope.toggleSharesEditor = function (calendar) {
@@ -581,8 +582,7 @@ app.controller('CalendarListController', ['$scope', '$rootScope', '$window', 'Ha
 			item.calendar.publish().then(function (response) {
 				if (response) {
 					CalendarService.get(item.calendar.url).then(function (calendar) {
-						item.calendar.publishurl = calendar.publishurl;
-						item.calendar.publicurl = calendar.publicurl;
+						item.calendar.publicToken = calendar.publicToken;
 						item.calendar.published = true;
 					});
 				}
@@ -840,7 +840,7 @@ app.controller('EditorController', ['$scope', 'TimezoneService', 'AutoCompletion
 	};
 
 	$uibModalInstance.rendered.then(function () {
-		if ($scope.properties.dtend.type === 'date') {
+		if ($scope.properties.allDay) {
 			$scope.properties.dtend.value = moment($scope.properties.dtend.value.subtract(1, 'days'));
 		}
 
@@ -898,18 +898,17 @@ app.controller('EditorController', ['$scope', 'TimezoneService', 'AutoCompletion
 			OC.Notification.showTemporary(t('calendar', 'Please select a calendar!'));
 			error = true;
 		}
+		if (!$scope.properties.checkDtStartBeforeDtEnd()) {
+			OC.Notification.showTemporary(t('calendar', 'The event ends before it starts!'));
+			error = true;
+		}
 
 		return !error;
 	};
 
 	$scope.prepareClose = function () {
 		if ($scope.properties.allDay) {
-			$scope.properties.dtstart.type = 'date';
-			$scope.properties.dtend.type = 'date';
 			$scope.properties.dtend.value.add(1, 'days');
-		} else {
-			$scope.properties.dtstart.type = 'date-time';
-			$scope.properties.dtend.type = 'date-time';
 		}
 
 		angular.forEach($scope.postEditingHooks, function (callback) {
@@ -990,6 +989,7 @@ app.controller('EditorController', ['$scope', 'TimezoneService', 'AutoCompletion
 			$scope.properties.dtend.parameters.zone = $scope.defaulttimezone;
 		}
 	};
+	$scope.$watch('properties.allDay', $scope.toggledAllDay);
 
 	TimezoneService.listAll().then(function (list) {
 		if ($scope.properties.dtstart.parameters.zone !== 'floating' && list.indexOf($scope.properties.dtstart.parameters.zone) === -1) {
@@ -1557,6 +1557,21 @@ app.controller('VAlarmController', ["$scope", function ($scope) {
 }]);
 'use strict';
 
+
+app.directive('avatar', function () {
+  'use strict';
+
+  return {
+    restrict: 'A',
+    scope: {},
+    link: function link(scope, elm, attrs) {
+      var size = attrs.size ? parseInt(attrs.size, 10) : 32;
+      $(elm).avatar(attrs.user, size);
+    }
+  };
+});
+'use strict';
+
 app.directive('colorpicker', ["ColorUtility", function (ColorUtility) {
   'use strict';
 
@@ -1687,8 +1702,12 @@ app.directive('ocdatetimepicker', ["$compile", "$timeout", function ($compile, $
 			scope.time = null;
 			scope.disableAllDayIfNecessary = function () {
 				if (scope.disabletime && !scope.readonly) {
-					scope.disabletime = false;
-					element.find('.events--time').timepicker('show');
+					$timeout(function () {
+						scope.$apply(function () {
+							scope.disabletime = false;
+						});
+						element.find('.events--time').timepicker('show');
+					});
 				}
 			};
 
@@ -2017,15 +2036,21 @@ app.service('CalendarFactory', ["$window", "DavClient", "Calendar", "WebCal", "c
 		return null;
 	};
 
-	context.shares = function (props, owner) {
+	context.sharesAndOwnerDisplayname = function (props, owner) {
 		var shareProp = props['{' + DavClient.NS_OWNCLOUD + '}invite'];
 		var shares = {
 			users: [],
 			groups: []
 		};
+		var ownerDisplayname = null;
+
+		var ownerDisplaynameProp = props['{' + DavClient.NS_NEXTCLOUD + '}owner-displayname'];
+		if (ownerDisplaynameProp) {
+			ownerDisplayname = ownerDisplaynameProp;
+		}
 
 		if (!Array.isArray(shareProp)) {
-			return shares;
+			return [shares, null];
 		}
 
 		shareProp.forEach(function (share) {
@@ -2055,12 +2080,18 @@ app.service('CalendarFactory', ["$window", "DavClient", "Calendar", "WebCal", "c
 			var writable = access.getElementsByTagNameNS(DavClient.NS_OWNCLOUD, 'read-write');
 			writable = writable.length !== 0;
 
-			if (href.startsWith(SHARE_USER_PREFIX) && href.substr(SHARE_USER_PREFIX.length) !== owner) {
-				shares.users.push({
-					id: href.substr(SHARE_USER_PREFIX.length),
-					displayname: displayName,
-					writable: writable
-				});
+			if (href.startsWith(SHARE_USER_PREFIX)) {
+				if (href.substr(SHARE_USER_PREFIX.length) === owner) {
+					if (!ownerDisplayname) {
+						ownerDisplayname = displayName;
+					}
+				} else {
+					shares.users.push({
+						id: href.substr(SHARE_USER_PREFIX.length),
+						displayname: displayName,
+						writable: writable
+					});
+				}
 			} else if (href.startsWith(SHARE_GROUP_PREFIX)) {
 				shares.groups.push({
 					id: href.substr(SHARE_GROUP_PREFIX.length),
@@ -2070,7 +2101,7 @@ app.service('CalendarFactory', ["$window", "DavClient", "Calendar", "WebCal", "c
 			}
 		});
 
-		return shares;
+		return [shares, ownerDisplayname];
 	};
 
 	context.shareableAndPublishable = function (props, writable, publicMode) {
@@ -2115,25 +2146,22 @@ app.service('CalendarFactory', ["$window", "DavClient", "Calendar", "WebCal", "c
 		return [shareable, publishable];
 	};
 
-	context.publishedAndPublishURL = function (props, publicMode) {
+	context.publishedAndPublicToken = function (props) {
 		var published = false;
-		var publishurl = null;
-		var publicurl = null;
+		var publicToken = null;
 
 		if (angular.isDefined(props['{' + DavClient.NS_CALENDARSERVER + '}publish-url'])) {
 			published = true;
-			publishurl = props['{' + DavClient.NS_CALENDARSERVER + '}publish-url'][0].textContent;
-
-			publicurl = $window.location.toString().endsWith('#') ? $window.location.toString().slice(0, -1) : $window.location.toString();
-
-			var publicPath = !publicurl.endsWith('/') ? '/public/' : 'public/';
-
-			if (!publicMode) {
-				publicurl += publicPath + publishurl.substr(publishurl.lastIndexOf('/') + 1);
+			var publishURL = props['{' + DavClient.NS_CALENDARSERVER + '}publish-url'][0].textContent;
+			if (publishURL.substr(-1) === '/') {
+				publishURL = publishURL.substr(0, publishURL.length - 1);
 			}
+
+			var lastIndexOfSlash = publishURL.lastIndexOf('/');
+			publicToken = publishURL.substr(lastIndexOfSlash + 1);
 		}
 
-		return [published, publishurl, publicurl];
+		return [published, publicToken];
 	};
 
 	context.webcal = function (props) {
@@ -2163,7 +2191,13 @@ app.service('CalendarFactory', ["$window", "DavClient", "Calendar", "WebCal", "c
 		simple.owner = context.owner(props);
 		simple.enabled = context.enabled(props, simple.owner, currentUser);
 
-		simple.shares = context.shares(props, simple.owner);
+		var _context$sharesAndOwn = context.sharesAndOwnerDisplayname(props, simple.owner),
+		    _context$sharesAndOwn2 = _slicedToArray(_context$sharesAndOwn, 2),
+		    shares = _context$sharesAndOwn2[0],
+		    ownerDisplayname = _context$sharesAndOwn2[1];
+
+		simple.shares = shares;
+		simple.ownerDisplayname = ownerDisplayname;
 
 		var _context$shareableAnd = context.shareableAndPublishable(props, simple.writable, publicMode),
 		    _context$shareableAnd2 = _slicedToArray(_context$shareableAnd, 2),
@@ -2173,22 +2207,32 @@ app.service('CalendarFactory', ["$window", "DavClient", "Calendar", "WebCal", "c
 		simple.shareable = shareable;
 		simple.publishable = publishable;
 
-		var _context$publishedAnd = context.publishedAndPublishURL(props, publicMode),
-		    _context$publishedAnd2 = _slicedToArray(_context$publishedAnd, 3),
+		if (simple.owner !== currentUser && !constants.shareeCanEditShares) {
+			simple.shareable = false;
+			simple.publishable = false;
+		}
+
+		var _context$publishedAnd = context.publishedAndPublicToken(props),
+		    _context$publishedAnd2 = _slicedToArray(_context$publishedAnd, 2),
 		    published = _context$publishedAnd2[0],
-		    publishurl = _context$publishedAnd2[1],
-		    publicurl = _context$publishedAnd2[2];
+		    publicToken = _context$publishedAnd2[1];
 
 		simple.published = published;
-		simple.publishurl = publishurl;
-		simple.publicurl = publicurl;
+		simple.publicToken = publicToken;
 
 		if (publicMode) {
 			simple.enabled = true;
 			simple.writable = false;
+			simple.color = constants.fallbackColor;
 		}
 
-		simple.writableProperties = currentUser === simple.owner && simple.writable;
+		if (publicMode) {
+			simple.writableProperties = false;
+		} else if (simple.owner === currentUser) {
+			simple.writableProperties = simple.writable;
+		} else {
+			simple.writableProperties = constants.shareeCanEditCalendarProperties || false;
+		}
 
 		return simple;
 	};
@@ -2264,6 +2308,2081 @@ app.service('ICalFactory', ["constants", function (constants) {
 
 		return comp;
 	};
+}]);
+'use strict';
+
+var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+
+app.factory('ImportFileWrapper', ["Hook", "ICalSplitterUtility", function (Hook, ICalSplitterUtility) {
+	'use strict';
+
+	function ImportFileWrapper(file) {
+		var context = {
+			file: file,
+			splittedICal: null,
+			selectedCalendar: null,
+			state: 0,
+			errors: 0,
+			progress: 0,
+			progressToReach: -1
+		};
+		var iface = {
+			_isAImportFileWrapperObject: true
+		};
+
+		context.checkIsDone = function () {
+			if (context.progress === context.progressToReach) {
+				context.state = ImportFileWrapper.stateDone;
+				iface.emit(ImportFileWrapper.hookDone);
+			}
+		};
+
+		Object.defineProperties(iface, {
+			file: {
+				get: function get() {
+					return context.file;
+				}
+			},
+			splittedICal: {
+				get: function get() {
+					return context.splittedICal;
+				}
+			},
+			selectedCalendar: {
+				get: function get() {
+					return context.selectedCalendar;
+				},
+				set: function set(selectedCalendar) {
+					context.selectedCalendar = selectedCalendar;
+				}
+			},
+			state: {
+				get: function get() {
+					return context.state;
+				},
+				set: function set(state) {
+					if (typeof state === 'number') {
+						context.state = state;
+					}
+				}
+			},
+			errors: {
+				get: function get() {
+					return context.errors;
+				},
+				set: function set(errors) {
+					if (typeof errors === 'number') {
+						var oldErrors = context.errors;
+						context.errors = errors;
+						iface.emit(ImportFileWrapper.hookErrorsChanged, errors, oldErrors);
+					}
+				}
+			},
+			progress: {
+				get: function get() {
+					return context.progress;
+				},
+				set: function set(progress) {
+					if (typeof progress === 'number') {
+						var oldProgress = context.progress;
+						context.progress = progress;
+						iface.emit(ImportFileWrapper.hookProgressChanged, progress, oldProgress);
+
+						context.checkIsDone();
+					}
+				}
+			},
+			progressToReach: {
+				get: function get() {
+					return context.progressToReach;
+				}
+			}
+		});
+
+		iface.wasCanceled = function () {
+			return context.state === ImportFileWrapper.stateCanceled;
+		};
+
+		iface.isAnalyzing = function () {
+			return context.state === ImportFileWrapper.stateAnalyzing;
+		};
+
+		iface.isAnalyzed = function () {
+			return context.state === ImportFileWrapper.stateAnalyzed;
+		};
+
+		iface.isScheduled = function () {
+			return context.state === ImportFileWrapper.stateScheduled;
+		};
+
+		iface.isImporting = function () {
+			return context.state === ImportFileWrapper.stateImporting;
+		};
+
+		iface.isDone = function () {
+			return context.state === ImportFileWrapper.stateDone;
+		};
+
+		iface.hasErrors = function () {
+			return context.errors > 0;
+		};
+
+		iface.isEmpty = function () {
+			return context.progressToReach === 0;
+		};
+
+		iface.read = function (afterReadCallback) {
+			var reader = new FileReader();
+
+			reader.onload = function (event) {
+				context.splittedICal = ICalSplitterUtility.split(event.target.result);
+				context.progressToReach = context.splittedICal.vevents.length + context.splittedICal.vjournals.length + context.splittedICal.vtodos.length;
+
+				if (context.progressToReach === 0) {
+					iface.state = ImportFileWrapper.stateEmpty;
+					iface.emit(ImportFileWrapper.hookDone);
+				} else {
+					iface.state = ImportFileWrapper.stateAnalyzed;
+					afterReadCallback();
+				}
+			};
+
+			reader.readAsText(file);
+		};
+
+		Object.assign(iface, Hook(context));
+
+		return iface;
+	}
+
+	ImportFileWrapper.isImportWrapper = function (obj) {
+		return obj instanceof ImportFileWrapper || (typeof obj === 'undefined' ? 'undefined' : _typeof(obj)) === 'object' && obj !== null && obj._isAImportFileWrapperObject !== null;
+	};
+
+	ImportFileWrapper.stateEmpty = -2;
+	ImportFileWrapper.stateCanceled = -1;
+	ImportFileWrapper.stateAnalyzing = 0;
+	ImportFileWrapper.stateAnalyzed = 1;
+	ImportFileWrapper.stateScheduled = 2;
+	ImportFileWrapper.stateImporting = 3;
+	ImportFileWrapper.stateDone = 4;
+
+	ImportFileWrapper.hookProgressChanged = 1;
+	ImportFileWrapper.hookDone = 2;
+	ImportFileWrapper.hookErrorsChanged = 3;
+
+	return ImportFileWrapper;
+}]);
+'use strict';
+
+var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+
+
+app.factory('CalendarListItem', ["$rootScope", "$window", "Calendar", "WebCal", "isSharingAPI", function ($rootScope, $window, Calendar, WebCal, isSharingAPI) {
+	'use strict';
+
+	function CalendarListItem(calendar) {
+		var context = {
+			calendar: calendar,
+			isEditingShares: false,
+			isEditingProperties: false,
+			isDisplayingCalDAVUrl: false,
+			isDisplayingWebCalUrl: false,
+			isSendingMail: false
+		};
+		var iface = {
+			_isACalendarListItemObject: true
+		};
+
+		if (!Calendar.isCalendar(calendar)) {
+			return null;
+		}
+
+		Object.defineProperties(iface, {
+			calendar: {
+				get: function get() {
+					return context.calendar;
+				}
+			},
+			publicSharingURL: {
+				get: function get() {
+					return $rootScope.root + 'p/' + context.calendar.publicToken;
+				}
+			},
+			publicEmbedURL: {
+				get: function get() {
+					return $rootScope.root + 'embed/' + context.calendar.publicToken;
+				}
+			}
+		});
+
+		iface.displayCalDAVUrl = function () {
+			return context.isDisplayingCalDAVUrl;
+		};
+
+		iface.showCalDAVUrl = function () {
+			context.isDisplayingCalDAVUrl = true;
+		};
+
+		iface.displayWebCalUrl = function () {
+			return context.isDisplayingWebCalUrl;
+		};
+
+		iface.hideCalDAVUrl = function () {
+			context.isDisplayingCalDAVUrl = false;
+		};
+
+		iface.showWebCalUrl = function () {
+			context.isDisplayingWebCalUrl = true;
+		};
+
+		iface.hideWebCalUrl = function () {
+			context.isDisplayingWebCalUrl = false;
+		};
+
+		iface.showSharingIcon = function () {
+			var isCalendarShareable = context.calendar.isShareable();
+			var isCalendarShared = context.calendar.isShared();
+			var isCalendarPublishable = context.calendar.isPublishable();
+
+			if (isCalendarPublishable) {
+				return true;
+			}
+
+			if (!isSharingAPI && isCalendarShared && isCalendarShareable) {
+				return true;
+			}
+
+			return isSharingAPI && isCalendarShareable;
+		};
+
+		iface.isEditingShares = function () {
+			return context.isEditingShares;
+		};
+
+		iface.isSendingMail = function () {
+			return context.isSendingMail;
+		};
+
+		iface.toggleEditingShares = function () {
+			context.isEditingShares = !context.isEditingShares;
+		};
+
+		iface.toggleSendingMail = function () {
+			context.isSendingMail = !context.isSendingMail;
+		};
+
+		iface.isEditing = function () {
+			return context.isEditingProperties;
+		};
+
+		iface.displayActions = function () {
+			return !iface.isEditing();
+		};
+
+		iface.displayColorIndicator = function () {
+			return !iface.isEditing() && !context.calendar.isRendering();
+		};
+
+		iface.displaySpinner = function () {
+			return !iface.isEditing() && context.calendar.isRendering();
+		};
+
+		iface.openEditor = function () {
+			iface.color = context.calendar.color;
+			iface.displayname = context.calendar.displayname;
+
+			context.isEditingProperties = true;
+		};
+
+		iface.cancelEditor = function () {
+			iface.color = '';
+			iface.displayname = '';
+
+			context.isEditingProperties = false;
+		};
+
+		iface.saveEditor = function () {
+			context.calendar.color = iface.color;
+			context.calendar.displayname = iface.displayname;
+
+			iface.color = '';
+			iface.displayname = '';
+
+			context.isEditingProperties = false;
+		};
+
+		iface.isWebCal = function () {
+			return WebCal.isWebCal(context.calendar);
+		};
+
+		iface.getOwnerName = function () {
+			return context.calendar.ownerDisplayname || context.calendar.owner;
+		};
+
+		iface.getPublicDisplayname = function () {
+			var searchFor = '(' + context.calendar.owner + ')';
+			var lastIndexOf = context.calendar.displayname.lastIndexOf(searchFor);
+
+			return context.calendar.displayname.substr(0, lastIndexOf - 1);
+		};
+
+		iface.color = '';
+		iface.displayname = '';
+
+		iface.order = 0;
+
+		iface.selectedSharee = '';
+
+		return iface;
+	}
+
+	CalendarListItem.isCalendarListItem = function (obj) {
+		return (typeof obj === 'undefined' ? 'undefined' : _typeof(obj)) === 'object' && obj !== null && obj._isACalendarListItemObject === true;
+	};
+
+	return CalendarListItem;
+}]);
+'use strict';
+
+var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+
+var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
+
+
+app.factory('Calendar', ["$window", "Hook", "VEventService", "TimezoneService", "ColorUtility", "StringUtility", function ($window, Hook, VEventService, TimezoneService, ColorUtility, StringUtility) {
+	'use strict';
+
+
+	function Calendar(CalendarService, url, props) {
+		url = url || '';
+		props = props || {};
+
+		var context = {
+			calendarService: CalendarService,
+			fcEventSource: {},
+			components: props.components,
+			mutableProperties: {
+				color: props.color,
+				displayname: props.displayname,
+				enabled: props.enabled,
+				order: props.order,
+				published: props.published
+			},
+			updatedProperties: [],
+			tmpId: StringUtility.uid(),
+			url: url,
+			owner: props.owner,
+			ownerDisplayname: props.ownerDisplayname,
+			shares: props.shares,
+			publicToken: props.publicToken,
+			publishable: props.publishable,
+			warnings: [],
+			shareable: props.shareable,
+			writable: props.writable,
+			writableProperties: props.writableProperties
+		};
+		var iface = {
+			_isACalendarObject: true
+		};
+
+		context.fcEventSource.events = function (start, end, timezone, callback) {
+			var fcAPI = this;
+			context.fcEventSource.isRendering = true;
+			iface.emit(Calendar.hookFinishedRendering);
+
+			start = moment(start.stripZone().format());
+			end = moment(end.stripZone().format());
+
+			var TimezoneServicePromise = TimezoneService.get(timezone);
+			var VEventServicePromise = VEventService.getAll(iface, start, end);
+			Promise.all([TimezoneServicePromise, VEventServicePromise]).then(function (results) {
+				var _results = _slicedToArray(results, 2),
+				    tz = _results[0],
+				    events = _results[1];
+
+				var promises = [];
+				var vevents = [];
+
+				events.forEach(function (event) {
+					var promise = event.getFcEvent(start, end, tz).then(function (vevent) {
+						vevents = vevents.concat(vevent);
+					}).catch(function (reason) {
+						iface.addWarning(reason);
+						console.log(event, reason);
+					});
+
+					promises.push(promise);
+				});
+
+				return Promise.all(promises).then(function () {
+					callback(vevents);
+					fcAPI.reportEventChange();
+					context.fcEventSource.isRendering = false;
+
+					iface.emit(Calendar.hookFinishedRendering);
+				});
+			}).catch(function (reason) {
+				if (reason === 'Unknown timezone' && timezone !== 'UTC') {
+					var eventsFn = iface.fcEventSource.events.bind(fcAPI);
+					eventsFn(start, end, 'UTC', callback);
+				}
+
+				iface.addWarning(reason);
+				context.fcEventSource.isRendering = false;
+				iface.emit(Calendar.hookFinishedRendering);
+
+				console.log(context.url, reason);
+			});
+		};
+		context.fcEventSource.editable = context.writable;
+		context.fcEventSource.calendar = iface;
+		context.fcEventSource.isRendering = false;
+
+		context.setUpdated = function (property) {
+			if (context.updatedProperties.indexOf(property) === -1) {
+				context.updatedProperties.push(property);
+			}
+		};
+
+		Object.defineProperties(iface, {
+			color: {
+				get: function get() {
+					return context.mutableProperties.color;
+				},
+				set: function set(color) {
+					var oldColor = context.mutableProperties.color;
+					if (color === oldColor) {
+						return;
+					}
+					context.mutableProperties.color = color;
+					context.setUpdated('color');
+					iface.emit(Calendar.hookColorChanged, color, oldColor);
+				}
+			},
+			textColor: {
+				get: function get() {
+					var colors = ColorUtility.extractRGBFromHexString(context.mutableProperties.color);
+					return ColorUtility.generateTextColorFromRGB(colors.r, colors.g, colors.b);
+				}
+			},
+			displayname: {
+				get: function get() {
+					return context.mutableProperties.displayname;
+				},
+				set: function set(displayname) {
+					var oldDisplayname = context.mutableProperties.displayname;
+					if (displayname === oldDisplayname) {
+						return;
+					}
+					context.mutableProperties.displayname = displayname;
+					context.setUpdated('displayname');
+					iface.emit(Calendar.hookDisplaynameChanged, displayname, oldDisplayname);
+				}
+			},
+			enabled: {
+				get: function get() {
+					return context.mutableProperties.enabled;
+				},
+				set: function set(enabled) {
+					var oldEnabled = context.mutableProperties.enabled;
+					if (enabled === oldEnabled) {
+						return;
+					}
+					context.mutableProperties.enabled = enabled;
+					context.setUpdated('enabled');
+					iface.emit(Calendar.hookEnabledChanged, enabled, oldEnabled);
+				}
+			},
+			order: {
+				get: function get() {
+					return context.mutableProperties.order;
+				},
+				set: function set(order) {
+					var oldOrder = context.mutableProperties.order;
+					if (order === oldOrder) {
+						return;
+					}
+					context.mutableProperties.order = order;
+					context.setUpdated('order');
+					iface.emit(Calendar.hookOrderChanged, order, oldOrder);
+				}
+
+			},
+			components: {
+				get: function get() {
+					return context.components;
+				}
+			},
+			url: {
+				get: function get() {
+					return context.url;
+				}
+			},
+			downloadUrl: {
+				get: function get() {
+					var url = context.url;
+					if (url.slice(url.length - 1) === '/') {
+						url = url.slice(0, url.length - 1);
+					}
+					url += '?export';
+
+					return url;
+				},
+				configurable: true
+			},
+			caldav: {
+				get: function get() {
+					return $window.location.origin + context.url;
+				}
+			},
+			publicToken: {
+				get: function get() {
+					return context.publicToken;
+				},
+				set: function set(publicToken) {
+					context.publicToken = publicToken;
+				}
+			},
+			published: {
+				get: function get() {
+					return context.mutableProperties.published;
+				},
+				set: function set(published) {
+					context.mutableProperties.published = published;
+				}
+			},
+			publishable: {
+				get: function get() {
+					return context.publishable;
+				}
+			},
+			fcEventSource: {
+				get: function get() {
+					return context.fcEventSource;
+				}
+			},
+			shares: {
+				get: function get() {
+					return context.shares;
+				}
+			},
+			tmpId: {
+				get: function get() {
+					return context.tmpId;
+				}
+			},
+			warnings: {
+				get: function get() {
+					return context.warnings;
+				}
+			},
+			owner: {
+				get: function get() {
+					return context.owner;
+				}
+			},
+			ownerDisplayname: {
+				get: function get() {
+					return context.ownerDisplayname;
+				}
+			}
+		});
+
+		iface.hasUpdated = function () {
+			return context.updatedProperties.length !== 0;
+		};
+
+		iface.getUpdated = function () {
+			return context.updatedProperties;
+		};
+
+		iface.resetUpdated = function () {
+			context.updatedProperties = [];
+		};
+
+		iface.addWarning = function (msg) {
+			context.warnings.push(msg);
+		};
+
+		iface.hasWarnings = function () {
+			return context.warnings.length > 0;
+		};
+
+		iface.resetWarnings = function () {
+			context.warnings = [];
+		};
+
+		iface.toggleEnabled = function () {
+			context.mutableProperties.enabled = !context.mutableProperties.enabled;
+			context.setUpdated('enabled');
+			iface.emit(Calendar.hookEnabledChanged, context.mutableProperties.enabled, !context.mutableProperties.enabled);
+		};
+
+		iface.isShared = function () {
+			return context.shares.groups.length !== 0 || context.shares.users.length !== 0;
+		};
+
+		iface.isPublished = function () {
+			return context.mutableProperties.published;
+		};
+
+		iface.isPublishable = function () {
+			return context.publishable;
+		};
+
+		iface.isShareable = function () {
+			return context.shareable;
+		};
+
+		iface.isRendering = function () {
+			return context.fcEventSource.isRendering;
+		};
+
+		iface.isWritable = function () {
+			return context.writable;
+		};
+
+		iface.arePropertiesWritable = function () {
+			return context.writableProperties;
+		};
+
+		iface.eventsAccessibleViaCalDAV = function () {
+			return true;
+		};
+
+		iface.refresh = function () {
+		};
+
+		iface.update = function () {
+			return context.calendarService.update(iface);
+		};
+
+		iface.delete = function () {
+			return context.calendarService.delete(iface);
+		};
+
+		iface.share = function (shareType, shareWith, writable, existingShare) {
+			return context.calendarService.share(iface, shareType, shareWith, writable, existingShare);
+		};
+
+		iface.unshare = function (shareType, shareWith, writable, existingShare) {
+			return context.calendarService.unshare(iface, shareType, shareWith, writable, existingShare);
+		};
+
+		iface.publish = function () {
+			return context.calendarService.publish(iface);
+		};
+
+		iface.unpublish = function () {
+			return context.calendarService.unpublish(iface);
+		};
+
+		Object.assign(iface, Hook(context));
+
+		return iface;
+	}
+
+	Calendar.isCalendar = function (obj) {
+		return (typeof obj === 'undefined' ? 'undefined' : _typeof(obj)) === 'object' && obj !== null && obj._isACalendarObject === true;
+	};
+
+	Calendar.hookFinishedRendering = 1;
+	Calendar.hookColorChanged = 2;
+	Calendar.hookDisplaynameChanged = 3;
+	Calendar.hookEnabledChanged = 4;
+	Calendar.hookOrderChanged = 5;
+
+	return Calendar;
+}]);
+'use strict';
+
+var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+
+
+app.factory('FcEvent', ["SimpleEvent", function (SimpleEvent) {
+	'use strict';
+
+
+	function FcEvent(vevent, event, start, end) {
+		var context = { vevent: vevent, event: event };
+		context.iCalEvent = new ICAL.Event(event);
+
+		var id = context.vevent.uri;
+		if (event.hasProperty('recurrence-id')) {
+			id += context.event.getFirstPropertyValue('recurrence-id').toICALString();
+		}
+
+		var allDay = start.icaltype === 'date' && end.icaltype === 'date';
+		context.allDay = allDay;
+
+		var iface = {
+			_isAFcEventObject: true,
+			id: id,
+			allDay: allDay,
+			start: start.toJSDate(),
+			end: end.toJSDate(),
+			repeating: context.iCalEvent.isRecurring(),
+			className: ['fcCalendar-id-' + vevent.calendar.tmpId],
+			editable: vevent.calendar.isWritable(),
+			backgroundColor: vevent.calendar.color,
+			borderColor: vevent.calendar.color,
+			textColor: vevent.calendar.textColor,
+			title: event.getFirstPropertyValue('summary')
+		};
+
+		Object.defineProperties(iface, {
+			vevent: {
+				get: function get() {
+					return context.vevent;
+				},
+				enumerable: true
+			},
+			event: {
+				get: function get() {
+					return context.event;
+				},
+				enumerable: true
+			},
+			calendar: {
+				get: function get() {
+					return context.vevent.calendar;
+				},
+				enumerable: true
+			}
+		});
+
+		iface.getSimpleEvent = function () {
+			return SimpleEvent(context.event);
+		};
+
+		iface.drop = function (delta, isAllDay, timezone, defaultTimedEventMomentDuration, defaultAllDayEventMomentDuration) {
+			delta = new ICAL.Duration().fromSeconds(delta.asSeconds());
+
+			var timedDuration = new ICAL.Duration().fromSeconds(defaultTimedEventMomentDuration.asSeconds());
+			var allDayDuration = new ICAL.Duration().fromSeconds(defaultAllDayEventMomentDuration.asSeconds());
+
+			var dtstartProp = context.event.getFirstProperty('dtstart');
+			var dtstart = dtstartProp.getFirstValue();
+			dtstart.isDate = isAllDay;
+			dtstart.addDuration(delta);
+			dtstart.zone = isAllDay ? 'floating' : dtstart.zone;
+
+			if (context.allDay && !isAllDay) {
+				var timezoneObject = ICAL.TimezoneService.get(timezone);
+
+				if (timezone === 'UTC') {
+					timezone = 'Z';
+				}
+
+				dtstart.zone = timezoneObject;
+				if (timezone !== 'Z') {
+					dtstartProp.setParameter('tzid', timezone);
+
+					if (context.event.parent) {
+						context.event.parent.addSubcomponent(timezoneObject.component);
+					}
+				}
+			}
+			if (!context.allDay && isAllDay) {
+				dtstartProp.removeParameter('tzid');
+			}
+			context.event.updatePropertyWithValue('dtstart', dtstart);
+
+			if (context.allDay !== isAllDay) {
+				if (!context.event.hasProperty('duration')) {
+					var dtend = dtstart.clone();
+					dtend.addDuration(isAllDay ? allDayDuration : timedDuration);
+					var dtendProp = context.event.updatePropertyWithValue('dtend', dtend);
+
+					var tzid = dtstartProp.getParameter('tzid');
+					if (tzid) {
+						dtendProp.setParameter('tzid', tzid);
+					} else {
+						dtendProp.removeParameter('tzid');
+					}
+				} else {
+					context.event.updatePropertyWithValue('duration', isAllDay ? allDayDuration : timedDuration);
+				}
+			} else {
+				if (context.event.hasProperty('dtend')) {
+					var _dtend = context.event.getFirstPropertyValue('dtend');
+					_dtend.addDuration(delta);
+					context.event.updatePropertyWithValue('dtend', _dtend);
+				}
+			}
+
+			context.allDay = isAllDay;
+			context.vevent.touch();
+		};
+
+		iface.resize = function (delta) {
+			delta = new ICAL.Duration().fromSeconds(delta.asSeconds());
+
+			if (context.event.hasProperty('duration')) {
+				var duration = context.event.getFirstPropertyValue('duration');
+				duration.fromSeconds(delta.toSeconds() + duration.toSeconds());
+				context.event.updatePropertyWithValue('duration', duration);
+			} else if (context.event.hasProperty('dtend')) {
+				var dtend = context.event.getFirstPropertyValue('dtend');
+				dtend.addDuration(delta);
+				context.event.updatePropertyWithValue('dtend', dtend);
+			} else if (context.event.hasProperty('dtstart')) {
+				var dtstart = event.getFirstProperty('dtstart');
+				var _dtend2 = dtstart.getFirstValue().clone();
+				_dtend2.addDuration(delta);
+
+				var prop = context.event.addPropertyWithValue('dtend', _dtend2);
+
+				var tzid = dtstart.getParameter('tzid');
+				if (tzid) {
+					prop.setParameter('tzid', tzid);
+				}
+			}
+
+			context.vevent.touch();
+		};
+
+		iface.lock = function () {
+			context.lock = true;
+		};
+
+		iface.unlock = function () {
+			context.lock = false;
+		};
+
+		return iface;
+	}
+
+	FcEvent.isFcEvent = function (obj) {
+		return (typeof obj === 'undefined' ? 'undefined' : _typeof(obj)) === 'object' && obj !== null && obj._isAFcEventObject === true;
+	};
+
+	return FcEvent;
+}]);
+'use strict';
+
+
+app.factory('Hook', function () {
+  'use strict';
+
+  return function Hook(context) {
+    context.hooks = {};
+    var iface = {};
+
+    iface.emit = function (identifier, newValue, oldValue) {
+      if (Array.isArray(context.hooks[identifier])) {
+        context.hooks[identifier].forEach(function (callback) {
+          callback(newValue, oldValue);
+        });
+      }
+    };
+
+    iface.register = function (identifier, callback) {
+      context.hooks[identifier] = context.hooks[identifier] || [];
+      context.hooks[identifier].push(callback);
+    };
+
+    return iface;
+  };
+});
+'use strict';
+
+var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+
+
+app.factory('SimpleEvent', function () {
+	'use strict';
+
+	var defaults = {
+		'summary': null,
+		'location': null,
+		'organizer': null,
+		'class': null,
+		'description': null,
+		'status': null,
+		'alarm': null,
+		'attendee': null,
+		'dtstart': null,
+		'dtend': null,
+		'repeating': null,
+		'rdate': null,
+		'rrule': null,
+		'exdate': null
+	};
+
+	var attendeeParameters = ['role', 'rsvp', 'partstat', 'cutype', 'cn', 'delegated-from', 'delegated-to'];
+
+	var organizerParameters = ['cn'];
+
+	function getDtProperty(simple, propName) {
+		if (simple.allDay) {
+			simple[propName].parameters.zone = 'floating';
+		}
+
+		simple[propName].parameters.zone = simple[propName].parameters.zone || 'floating';
+
+		if (simple[propName].parameters.zone !== 'floating' && !ICAL.TimezoneService.has(simple[propName].parameters.zone)) {
+			throw new Error('Requested timezone not found (' + simple[propName].parameters.zone + ')');
+		}
+
+		var iCalTime = ICAL.Time.fromJSDate(simple[propName].value.toDate(), false);
+		iCalTime.isDate = simple.allDay;
+
+		if (simple[propName].parameters.zone !== 'floating') {
+			iCalTime.zone = ICAL.TimezoneService.get(simple[propName].parameters.zone);
+		}
+
+		return iCalTime;
+	}
+
+	var simpleParser = {
+		date: function date(data, vevent, key, parameters) {
+			parameters = (parameters || []).concat(['tzid']);
+			simpleParser._parseSingle(data, vevent, key, parameters, function (p) {
+				var first = p.getFirstValue();
+				return p.type === 'duration' ? first.toSeconds() : moment(first.toJSDate());
+			});
+		},
+		dates: function dates(data, vevent, key, parameters) {
+			parameters = (parameters || []).concat(['tzid']);
+			simpleParser._parseMultiple(data, vevent, key, parameters, function (p) {
+				var values = p.getValues(),
+				    usableValues = [];
+
+				values.forEach(function (value) {
+					if (p.type === 'duration') {
+						usableValues.push(value.toSeconds());
+					} else {
+						usableValues.push(moment(value.toJSDate()));
+					}
+				});
+
+				return usableValues;
+			});
+		},
+		string: function string(data, vevent, key, parameters) {
+			simpleParser._parseSingle(data, vevent, key, parameters, function (p) {
+				return p.isMultiValue ? p.getValues() : p.getFirstValue();
+			});
+		},
+		strings: function strings(data, vevent, key, parameters) {
+			simpleParser._parseMultiple(data, vevent, key, parameters, function (p) {
+				return p.isMultiValue ? p.getValues() : p.getFirstValue();
+			});
+		},
+		_parseSingle: function _parseSingle(data, vevent, key, parameters, valueParser) {
+			var prop = vevent.getFirstProperty(key);
+			if (!prop) {
+				return;
+			}
+
+			data[key] = {
+				parameters: simpleParser._parseParameters(prop, parameters),
+				type: prop.type
+			};
+
+			if (prop.isMultiValue) {
+				data[key].values = valueParser(prop);
+			} else {
+				data[key].value = valueParser(prop);
+			}
+		},
+		_parseMultiple: function _parseMultiple(data, vevent, key, parameters, valueParser) {
+			data[key] = data[key] || [];
+
+			var properties = vevent.getAllProperties(key);
+			var group = 0;
+
+			properties.forEach(function (property) {
+				var currentElement = {
+					group: group,
+					parameters: simpleParser._parseParameters(property, parameters),
+					type: property.type
+				};
+
+				if (property.isMultiValue) {
+					currentElement.values = valueParser(property);
+				} else {
+					currentElement.value = valueParser(property);
+				}
+
+				data[key].push(currentElement);
+				property.setParameter('x-nc-group-id', group.toString());
+				group++;
+			});
+		},
+		_parseParameters: function _parseParameters(prop, para) {
+			var parameters = {};
+
+			if (!para) {
+				return parameters;
+			}
+
+			para.forEach(function (p) {
+				parameters[p] = prop.getParameter(p);
+			});
+
+			return parameters;
+		}
+	};
+
+	var simpleReader = {
+		date: function date(vevent, oldSimpleData, newSimpleData, key, parameters) {
+			parameters = (parameters || []).concat(['tzid']);
+			simpleReader._readSingle(vevent, oldSimpleData, newSimpleData, key, parameters, function (v, isMultiValue) {
+				return v.type === 'duration' ? ICAL.Duration.fromSeconds(v.value) : ICAL.Time.fromJSDate(v.value.toDate());
+			});
+		},
+		dates: function dates(vevent, oldSimpleData, newSimpleData, key, parameters) {
+			parameters = (parameters || []).concat(['tzid']);
+			simpleReader._readMultiple(vevent, oldSimpleData, newSimpleData, key, parameters, function (v, isMultiValue) {
+				var values = [];
+
+				v.values.forEach(function (value) {
+					if (v.type === 'duration') {
+						values.push(ICAL.Duration.fromSeconds(value));
+					} else {
+						values.push(ICAL.Time.fromJSDate(value.toDate()));
+					}
+				});
+
+				return values;
+			});
+		},
+		string: function string(vevent, oldSimpleData, newSimpleData, key, parameters) {
+			simpleReader._readSingle(vevent, oldSimpleData, newSimpleData, key, parameters, function (v, isMultiValue) {
+				return isMultiValue ? v.values : v.value;
+			});
+		},
+		strings: function strings(vevent, oldSimpleData, newSimpleData, key, parameters) {
+			simpleReader._readMultiple(vevent, oldSimpleData, newSimpleData, key, parameters, function (v, isMultiValue) {
+				return isMultiValue ? v.values : v.value;
+			});
+		},
+		_readSingle: function _readSingle(vevent, oldSimpleData, newSimpleData, key, parameters, valueReader) {
+			if (!newSimpleData[key]) {
+				return;
+			}
+			if (!newSimpleData[key].hasOwnProperty('value') && !newSimpleData[key].hasOwnProperty('values')) {
+				return;
+			}
+			var isMultiValue = newSimpleData[key].hasOwnProperty('values');
+
+			var prop = vevent.updatePropertyWithValue(key, valueReader(newSimpleData[key], isMultiValue));
+			simpleReader._readParameters(prop, newSimpleData[key], parameters);
+		},
+		_readMultiple: function _readMultiple(vevent, oldSimpleData, newSimpleData, key, parameters, valueReader) {
+			var oldGroups = [];
+			var properties = void 0,
+			    pKey = void 0,
+			    groupId = void 0;
+
+			oldSimpleData[key] = oldSimpleData[key] || [];
+			oldSimpleData[key].forEach(function (e) {
+				oldGroups.push(e.group);
+			});
+
+			newSimpleData[key] = newSimpleData[key] || [];
+			newSimpleData[key].forEach(function (e) {
+				var isMultiValue = e.hasOwnProperty('values');
+				var value = valueReader(e, isMultiValue);
+
+				if (oldGroups.indexOf(e.group) === -1) {
+					var property = new ICAL.Property(key);
+					simpleReader._setProperty(property, value, isMultiValue);
+					simpleReader._readParameters(property, e, parameters);
+					vevent.addProperty(property);
+				} else {
+					oldGroups.splice(oldGroups.indexOf(e.group), 1);
+
+					properties = vevent.getAllProperties(key);
+					for (pKey in properties) {
+						if (!properties.hasOwnProperty(pKey)) {
+							continue;
+						}
+
+						groupId = properties[pKey].getParameter('x-nc-group-id');
+						if (groupId === null) {
+							continue;
+						}
+						if (parseInt(groupId) === e.group) {
+							simpleReader._setProperty(properties[pKey], value, isMultiValue);
+							simpleReader._readParameters(properties[pKey], e, parameters);
+						}
+					}
+				}
+			});
+
+			properties = vevent.getAllProperties(key);
+			properties.forEach(function (property) {
+				groupId = property.getParameter('x-nc-group-id');
+				if (oldGroups.indexOf(parseInt(groupId)) !== -1) {
+					vevent.removeProperty(property);
+				}
+				property.removeParameter('x-nc-group-id');
+			});
+		},
+		_readParameters: function _readParameters(prop, simple, para) {
+			if (!para) {
+				return;
+			}
+			if (!simple.parameters) {
+				return;
+			}
+
+			para.forEach(function (p) {
+				if (simple.parameters[p]) {
+					prop.setParameter(p, simple.parameters[p]);
+				} else {
+					prop.removeParameter(simple.parameters[p]);
+				}
+			});
+		},
+		_setProperty: function _setProperty(prop, value, isMultiValue) {
+			if (isMultiValue) {
+				prop.setValues(value);
+			} else {
+				prop.setValue(value);
+			}
+		}
+	};
+
+	var simpleProperties = {
+		'summary': { parser: simpleParser.string, reader: simpleReader.string },
+		'location': { parser: simpleParser.string, reader: simpleReader.string },
+		'attendee': {
+			parser: simpleParser.strings,
+			reader: simpleReader.strings,
+			parameters: attendeeParameters
+		},
+		'organizer': {
+			parser: simpleParser.string,
+			reader: simpleReader.string,
+			parameters: organizerParameters
+		},
+		'class': { parser: simpleParser.string, reader: simpleReader.string },
+		'description': {
+			parser: simpleParser.string,
+			reader: simpleReader.string
+		},
+		'status': { parser: simpleParser.string, reader: simpleReader.string }
+	};
+
+	var specificParser = {
+		alarm: function alarm(data, vevent) {
+			data.alarm = data.alarm || [];
+
+			var alarms = vevent.getAllSubcomponents('valarm');
+			var group = 0;
+			alarms.forEach(function (alarm) {
+				var alarmData = {
+					group: group,
+					action: {},
+					trigger: {},
+					repeat: {},
+					duration: {},
+					attendee: []
+				};
+
+				simpleParser.string(alarmData, alarm, 'action');
+				simpleParser.date(alarmData, alarm, 'trigger');
+				simpleParser.string(alarmData, alarm, 'repeat');
+				simpleParser.date(alarmData, alarm, 'duration');
+				simpleParser.strings(alarmData, alarm, 'attendee', attendeeParameters);
+
+
+				if (alarmData.trigger.type === 'duration' && alarm.hasProperty('trigger')) {
+					var trigger = alarm.getFirstProperty('trigger');
+					var related = trigger.getParameter('related');
+					if (related) {
+						alarmData.trigger.related = related;
+					} else {
+						alarmData.trigger.related = 'start';
+					}
+				}
+
+				data.alarm.push(alarmData);
+
+				alarm.getFirstProperty('action').setParameter('x-nc-group-id', group.toString());
+				group++;
+			});
+		},
+		date: function date(data, vevent) {
+			var dtstart = vevent.getFirstPropertyValue('dtstart');
+			var dtend = void 0;
+
+			if (vevent.hasProperty('dtend')) {
+				dtend = vevent.getFirstPropertyValue('dtend');
+			} else if (vevent.hasProperty('duration')) {
+				dtend = dtstart.clone();
+				dtend.addDuration(vevent.getFirstPropertyValue('duration'));
+			} else {
+				dtend = dtstart.clone();
+			}
+
+			data.dtstart = {
+				parameters: {
+					zone: dtstart.zone.toString()
+				},
+				value: moment({
+					years: dtstart.year,
+					months: dtstart.month - 1,
+					date: dtstart.day,
+					hours: dtstart.hour,
+					minutes: dtstart.minute,
+					seconds: dtstart.seconds
+				})
+			};
+			data.dtend = {
+				parameters: {
+					zone: dtend.zone.toString()
+				},
+				value: moment({
+					years: dtend.year,
+					months: dtend.month - 1,
+					date: dtend.day,
+					hours: dtend.hour,
+					minutes: dtend.minute,
+					seconds: dtend.seconds
+				})
+			};
+			data.allDay = dtstart.icaltype === 'date' && dtend.icaltype === 'date';
+		},
+		repeating: function repeating(data, vevent) {
+			var iCalEvent = new ICAL.Event(vevent);
+
+			data.repeating = iCalEvent.isRecurring();
+
+			var rrule = vevent.getFirstPropertyValue('rrule');
+			if (rrule) {
+				data.rrule = {
+					count: rrule.count,
+					freq: rrule.freq,
+					interval: rrule.interval,
+					parameters: rrule.parts,
+					until: null
+				};
+
+			} else {
+				data.rrule = {
+					freq: 'NONE'
+				};
+			}
+		}
+	};
+
+	var specificReader = {
+		alarm: function alarm(vevent, oldSimpleData, newSimpleData) {
+			var components = {},
+			    key = 'alarm';
+
+			function getAlarmGroup(alarmData) {
+				return alarmData.group;
+			}
+
+			oldSimpleData[key] = oldSimpleData[key] || [];
+			var oldGroups = oldSimpleData[key].map(getAlarmGroup);
+
+			newSimpleData[key] = newSimpleData[key] || [];
+			var newGroups = newSimpleData[key].map(getAlarmGroup);
+
+			var removedAlarms = oldGroups.filter(function (group) {
+				return newGroups.indexOf(group) === -1;
+			});
+
+			vevent.getAllSubcomponents('valarm').forEach(function (alarm) {
+				var group = alarm.getFirstProperty('action').getParameter('x-nc-group-id');
+				components[group] = alarm;
+			});
+
+			removedAlarms.forEach(function (group) {
+				if (components[group]) {
+					vevent.removeSubcomponent(components[group]);
+					delete components[group];
+				}
+			});
+
+			newSimpleData[key].forEach(function (alarmData) {
+				var valarm = void 0,
+				    oldSimpleAlarmData = void 0;
+
+				if (oldGroups.indexOf(alarmData.group) === -1) {
+					valarm = new ICAL.Component('VALARM');
+					vevent.addSubcomponent(valarm);
+					oldSimpleAlarmData = {};
+				} else {
+					valarm = components[alarmData.group];
+					oldSimpleAlarmData = oldSimpleData.alarm.find(function (alarm) {
+						return alarm.group === alarmData.group;
+					});
+				}
+
+				simpleReader.string(valarm, oldSimpleAlarmData, alarmData, 'action', []);
+				simpleReader.date(valarm, oldSimpleAlarmData, alarmData, 'trigger', []);
+				simpleReader.string(valarm, oldSimpleAlarmData, alarmData, 'repeat', []);
+				simpleReader.date(valarm, oldSimpleAlarmData, alarmData, 'duration', []);
+				simpleReader.strings(valarm, oldSimpleAlarmData, alarmData, 'attendee', attendeeParameters);
+
+				valarm.getFirstProperty('action').removeParameter('x-nc-group-id');
+			});
+		},
+		date: function date(vevent, oldSimpleData, newSimpleData) {
+			vevent.removeAllProperties('dtstart');
+			vevent.removeAllProperties('dtend');
+			vevent.removeAllProperties('duration');
+
+			if (newSimpleData.allDay) {
+				newSimpleData.dtstart.parameters.zone = 'floating';
+				newSimpleData.dtend.parameters.zone = 'floating';
+			}
+
+			newSimpleData.dtstart.parameters.zone = newSimpleData.dtstart.parameters.zone || 'floating';
+			newSimpleData.dtend.parameters.zone = newSimpleData.dtend.parameters.zone || 'floating';
+
+			if (newSimpleData.dtstart.parameters.zone !== 'floating' && !ICAL.TimezoneService.has(newSimpleData.dtstart.parameters.zone)) {
+				throw new Error('Requested timezone not found (' + newSimpleData.dtstart.parameters.zone + ')');
+			}
+			if (newSimpleData.dtend.parameters.zone !== 'floating' && !ICAL.TimezoneService.has(newSimpleData.dtend.parameters.zone)) {
+				throw new Error('Requested timezone not found (' + newSimpleData.dtend.parameters.zone + ')');
+			}
+
+			var start = ICAL.Time.fromJSDate(newSimpleData.dtstart.value.toDate(), false);
+			start.isDate = newSimpleData.allDay;
+			var end = ICAL.Time.fromJSDate(newSimpleData.dtend.value.toDate(), false);
+			end.isDate = newSimpleData.allDay;
+
+			var alreadyStoredTimezones = ['UTC'];
+			var vtimezones = vevent.parent.getAllSubcomponents('vtimezone');
+			vtimezones.forEach(function (vtimezone) {
+				alreadyStoredTimezones.push(vtimezone.getFirstPropertyValue('tzid'));
+			});
+
+			var startProp = new ICAL.Property('dtstart', vevent);
+			if (newSimpleData.dtstart.parameters.zone !== 'floating') {
+				if (newSimpleData.dtstart.parameters.zone !== 'UTC') {
+					startProp.setParameter('tzid', newSimpleData.dtstart.parameters.zone);
+				}
+
+				var startTz = ICAL.TimezoneService.get(newSimpleData.dtstart.parameters.zone);
+				start.zone = startTz;
+				if (alreadyStoredTimezones.indexOf(newSimpleData.dtstart.parameters.zone) === -1) {
+					vevent.parent.addSubcomponent(startTz.component);
+					alreadyStoredTimezones.push(newSimpleData.dtstart.parameters.zone);
+				}
+			}
+			startProp.setValue(start);
+
+			var endProp = new ICAL.Property('dtend', vevent);
+			if (newSimpleData.dtend.parameters.zone !== 'floating') {
+				if (newSimpleData.dtend.parameters.zone !== 'UTC') {
+					endProp.setParameter('tzid', newSimpleData.dtend.parameters.zone);
+				}
+
+				var endTz = ICAL.TimezoneService.get(newSimpleData.dtend.parameters.zone);
+				end.zone = endTz;
+				if (alreadyStoredTimezones.indexOf(newSimpleData.dtend.parameters.zone) === -1) {
+					vevent.parent.addSubcomponent(endTz.component);
+				}
+			}
+			endProp.setValue(end);
+
+			vevent.addProperty(startProp);
+			vevent.addProperty(endProp);
+		},
+		repeating: function repeating(vevent, oldSimpleData, newSimpleData) {
+			if (newSimpleData.rrule === null || newSimpleData.rrule.freq === 'NONE') {
+				vevent.removeAllProperties('rdate');
+				vevent.removeAllProperties('rrule');
+				vevent.removeAllProperties('exdate');
+
+				return;
+			}
+
+			if (newSimpleData.rrule.dontTouch) {
+				return;
+			}
+
+			var params = {
+				interval: newSimpleData.rrule.interval,
+				freq: newSimpleData.rrule.freq
+			};
+
+			if (newSimpleData.rrule.count) {
+				params.count = newSimpleData.rrule.count;
+			}
+
+			var rrule = new ICAL.Recur(params);
+			vevent.updatePropertyWithValue('rrule', rrule);
+		}
+	};
+
+	function SimpleEvent(event) {
+		var context = {
+			event: event,
+			patched: false,
+			oldProperties: {}
+		};
+
+		var iface = {
+			_isASimpleEventObject: true
+		};
+		angular.extend(iface, defaults);
+
+		context.generateOldProperties = function () {
+			context.oldProperties = {};
+
+			for (var key in defaults) {
+				context.oldProperties[key] = angular.copy(iface[key]);
+			}
+		};
+
+		iface.checkDtStartBeforeDtEnd = function () {
+			var dtStart = getDtProperty(iface, 'dtstart');
+			var dtEnd = getDtProperty(iface, 'dtend');
+
+			return dtEnd.compare(dtStart) !== -1;
+		};
+
+		iface.patch = function () {
+			if (context.patched) {
+				throw new Error('SimpleEvent was already patched, patching not possible');
+			}
+
+			for (var simpleKey in simpleProperties) {
+				var simpleProperty = simpleProperties[simpleKey];
+
+				var reader = simpleProperty.reader;
+				var parameters = simpleProperty.parameters;
+				if (context.oldProperties[simpleKey] !== iface[simpleKey]) {
+					if (iface[simpleKey] === null) {
+						context.event.removeAllProperties(simpleKey);
+					} else {
+						reader(context.event, context.oldProperties, iface, simpleKey, parameters);
+					}
+				}
+			}
+
+			for (var specificKey in specificReader) {
+				var _reader = specificReader[specificKey];
+				_reader(context.event, context.oldProperties, iface);
+			}
+
+			context.patched = true;
+		};
+
+		for (var simpleKey in simpleProperties) {
+			var simpleProperty = simpleProperties[simpleKey];
+
+			var parser = simpleProperty.parser;
+			var parameters = simpleProperty.parameters;
+			if (context.event.hasProperty(simpleKey)) {
+				parser(iface, context.event, simpleKey, parameters);
+			}
+		}
+
+		for (var specificKey in specificParser) {
+			var _parser = specificParser[specificKey];
+			_parser(iface, context.event);
+		}
+
+		context.generateOldProperties();
+
+		return iface;
+	}
+
+	SimpleEvent.isSimpleEvent = function (obj) {
+		return (typeof obj === 'undefined' ? 'undefined' : _typeof(obj)) === 'object' && obj !== null && obj._isASimpleEventObject === true;
+	};
+
+	return SimpleEvent;
+});
+'use strict';
+
+var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+
+app.factory('SplittedICal', function () {
+	'use strict';
+
+	function SplittedICal(name, color) {
+		var context = {
+			name: name,
+			color: color,
+			vevents: [],
+			vjournals: [],
+			vtodos: []
+		};
+		var iface = {
+			_isASplittedICalObject: true
+		};
+
+		Object.defineProperties(iface, {
+			name: {
+				get: function get() {
+					return context.name;
+				}
+			},
+			color: {
+				get: function get() {
+					return context.color;
+				}
+			},
+			vevents: {
+				get: function get() {
+					return context.vevents;
+				}
+			},
+			vjournals: {
+				get: function get() {
+					return context.vjournals;
+				}
+			},
+			vtodos: {
+				get: function get() {
+					return context.vtodos;
+				}
+			},
+			objects: {
+				get: function get() {
+					return [].concat(context.vevents).concat(context.vjournals).concat(context.vtodos);
+				}
+			}
+		});
+
+		iface.addObject = function (componentName, object) {
+			switch (componentName) {
+				case 'vevent':
+					context.vevents.push(object);
+					break;
+
+				case 'vjournal':
+					context.vjournals.push(object);
+					break;
+
+				case 'vtodo':
+					context.vtodos.push(object);
+					break;
+
+				default:
+					break;
+			}
+		};
+
+		return iface;
+	}
+
+	SplittedICal.isSplittedICal = function (obj) {
+		return obj instanceof SplittedICal || (typeof obj === 'undefined' ? 'undefined' : _typeof(obj)) === 'object' && obj !== null && obj._isASplittedICalObject !== null;
+	};
+
+	return SplittedICal;
+});
+'use strict';
+
+
+app.factory('Timezone', function () {
+	'use strict';
+
+	var timezone = function Timezone(data) {
+		angular.extend(this, {
+			_props: {}
+		});
+
+		if (data instanceof ICAL.Timezone) {
+			this._props.jCal = data;
+			this._props.name = data.tzid;
+		} else if (typeof data === 'string') {
+			var jCal = ICAL.parse(data);
+			var components = new ICAL.Component(jCal);
+			var iCalTimezone = null;
+			if (components.name === 'vtimezone') {
+				iCalTimezone = new ICAL.Timezone(components);
+			} else {
+				iCalTimezone = new ICAL.Timezone(components.getFirstSubcomponent('vtimezone'));
+			}
+			this._props.jCal = iCalTimezone;
+			this._props.name = iCalTimezone.tzid;
+		}
+	};
+
+	timezone.prototype = {
+		get jCal() {
+			return this._props.jCal;
+		},
+		get name() {
+			return this._props.name;
+		}
+	};
+
+	return timezone;
+});
+'use strict';
+
+var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
+
+var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+
+function _toArray(arr) { return Array.isArray(arr) ? arr : Array.from(arr); }
+
+
+app.factory('VEvent', ["TimezoneService", "FcEvent", "SimpleEvent", "ICalFactory", "StringUtility", function (TimezoneService, FcEvent, SimpleEvent, ICalFactory, StringUtility) {
+	'use strict';
+
+
+	function VEvent(calendar, comp, uri) {
+		var etag = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : '';
+
+		var context = { calendar: calendar, comp: comp, uri: uri, etag: etag };
+		var iface = {
+			_isAVEventObject: true
+		};
+
+		if (!context.comp || !context.comp.jCal || context.comp.jCal.length === 0) {
+			throw new TypeError('Given comp is not a valid calendar');
+		}
+
+		var vtimezones = comp.getAllSubcomponents('vtimezone');
+		vtimezones.forEach(function (vtimezone) {
+			var timezone = new ICAL.Timezone(vtimezone);
+			ICAL.TimezoneService.register(timezone.tzid, timezone);
+		});
+
+		if (!uri) {
+			var vevent = context.comp.getFirstSubcomponent('vevent');
+			context.uri = vevent.getFirstPropertyValue('uid');
+		}
+
+		context.calculateDTEnd = function (vevent) {
+			if (vevent.hasProperty('dtend')) {
+				return vevent.getFirstPropertyValue('dtend');
+			} else if (vevent.hasProperty('duration')) {
+				var dtstart = vevent.getFirstPropertyValue('dtstart').clone();
+				dtstart.addDuration(vevent.getFirstPropertyValue('duration'));
+
+				return dtstart;
+			} else {
+				return vevent.getFirstPropertyValue('dtstart').clone();
+			}
+		};
+
+		context.convertTz = function (dt, timezone) {
+			if (context.needsTzConversion(dt) && timezone) {
+				dt = dt.convertToZone(timezone);
+			}
+
+			return dt;
+		};
+
+		context.needsTzConversion = function (dt) {
+			return dt.icaltype !== 'date' && dt.zone !== ICAL.Timezone.utcTimezone && dt.zone !== ICAL.Timezone.localTimezone;
+		};
+
+		context.getMissingEventTimezones = function () {
+			var missingTimezones = [];
+			var propertiesToSearch = ['dtstart', 'dtend'];
+			var vevents = context.comp.getAllSubcomponents('vevent');
+			vevents.forEach(function (vevent) {
+				propertiesToSearch.forEach(function (propName) {
+					if (vevent.hasProperty(propName)) {
+						var prop = vevent.getFirstProperty(propName);
+						var tzid = prop.getParameter('tzid');
+						if (tzid && !ICAL.TimezoneService.has(tzid) && missingTimezones.indexOf(tzid) === -1) {
+							missingTimezones.push(tzid);
+						}
+					}
+				});
+			});
+
+			return missingTimezones;
+		};
+
+		Object.defineProperties(iface, {
+			calendar: {
+				get: function get() {
+					return context.calendar;
+				},
+				set: function set(calendar) {
+					context.calendar = calendar;
+				}
+			},
+			comp: {
+				get: function get() {
+					return context.comp;
+				}
+			},
+			data: {
+				get: function get() {
+					return context.comp.toString();
+				}
+			},
+			etag: {
+				get: function get() {
+					return context.etag;
+				},
+				set: function set(etag) {
+					context.etag = etag;
+				}
+			},
+			uri: {
+				get: function get() {
+					return context.uri;
+				}
+			}
+		});
+
+		iface.getFcEvent = function (start, end, timezone) {
+			return new Promise(function (resolve, reject) {
+				var iCalStart = ICAL.Time.fromJSDate(start.toDate());
+				var iCalEnd = ICAL.Time.fromJSDate(end.toDate());
+				var fcEvents = [];
+
+				var missingTimezones = context.getMissingEventTimezones();
+				var errorSafeMissingTimezones = [];
+				missingTimezones.forEach(function (missingTimezone) {
+					var promise = TimezoneService.get(missingTimezone).then(function (tz) {
+						return tz;
+					}).catch(function (reason) {
+						return null;
+					});
+					errorSafeMissingTimezones.push(promise);
+				});
+
+				Promise.all(errorSafeMissingTimezones).then(function (timezones) {
+					timezones.forEach(function (timezone) {
+						if (!timezone) {
+							return;
+						}
+
+						var icalTimezone = new ICAL.Timezone(timezone.jCal);
+						ICAL.TimezoneService.register(timezone.name, icalTimezone);
+					});
+				}).then(function () {
+					var vevents = context.comp.getAllSubcomponents('vevent');
+					var exceptions = vevents.filter(function (vevent) {
+						return vevent.hasProperty('recurrence-id');
+					});
+					var vevent = vevents.find(function (vevent) {
+						return !vevent.hasProperty('recurrence-id');
+					});
+					var iCalEvent = new ICAL.Event(vevent, { exceptions: exceptions });
+
+					if (!vevent.hasProperty('dtstart')) {
+						resolve([]);
+					}
+
+					var dtstartProp = vevent.getFirstProperty('dtstart');
+					var rawDtstart = dtstartProp.getFirstValue('dtstart');
+					var rawDtend = context.calculateDTEnd(vevent);
+
+					if (iCalEvent.isRecurring()) {
+						var iterator = new ICAL.RecurExpansion({
+							component: vevent,
+							dtstart: rawDtstart
+						});
+
+						var next = void 0;
+						while (next = iterator.next()) {
+							var occurrence = iCalEvent.getOccurrenceDetails(next);
+
+							if (occurrence.endDate.compare(iCalStart) < 0) {
+								continue;
+							}
+							if (occurrence.startDate.compare(iCalEnd) > 0) {
+								break;
+							}
+
+							var dtstart = context.convertTz(occurrence.startDate, timezone.jCal);
+							var dtend = context.convertTz(occurrence.endDate, timezone.jCal);
+							var fcEvent = FcEvent(iface, occurrence.item.component, dtstart, dtend);
+
+							fcEvents.push(fcEvent);
+						}
+					} else {
+						var _dtstart = context.convertTz(rawDtstart, timezone.jCal);
+						var _dtend = context.convertTz(rawDtend, timezone.jCal);
+						var _fcEvent = FcEvent(iface, vevent, _dtstart, _dtend);
+
+						fcEvents.push(_fcEvent);
+					}
+
+					resolve(fcEvents);
+				});
+			});
+		};
+
+		iface.getSimpleEvent = function (searchedRecurrenceId) {
+			var vevents = context.comp.getAllSubcomponents('vevent');
+
+			var veventsLength = vevents.length;
+			for (var i = 0; i < veventsLength; i++) {
+				var _vevent = vevents[i];
+				var hasRecurrenceId = _vevent.hasProperty('recurrence-id');
+				var recurrenceId = null;
+				if (hasRecurrenceId) {
+					recurrenceId = _vevent.getFirstPropertyValue('recurrence-id').toICALString();
+				}
+
+				if (!hasRecurrenceId && !searchedRecurrenceId || hasRecurrenceId && searchedRecurrenceId === recurrenceId) {
+					return SimpleEvent(_vevent);
+				}
+			}
+
+			throw new Error('Event not found');
+		};
+
+		iface.touch = function () {
+			var vevent = context.comp.getFirstSubcomponent('vevent');
+			vevent.updatePropertyWithValue('last-modified', ICAL.Time.now());
+		};
+
+		return iface;
+	}
+
+	VEvent.isVEvent = function (obj) {
+		return (typeof obj === 'undefined' ? 'undefined' : _typeof(obj)) === 'object' && obj !== null && obj._isAVEventObject === true;
+	};
+
+	VEvent.sanDate = function (ics) {
+		ics.split("\n").forEach(function (el, i) {
+
+			var findTypes = ['DTSTART', 'DTEND'];
+			var dateType = /[^:]*/.exec(el)[0];
+			var icsDate = null;
+
+			if (findTypes.indexOf(dateType) >= 0 && el.trim().substr(-3) === 'T::') {
+				icsDate = el.replace(/[^0-9]/g, '');
+				ics = ics.replace(el, dateType + ';VALUE=DATE:' + icsDate);
+			}
+		});
+
+		return ics;
+	};
+
+	VEvent.sanNoDateValue = function (ics) {
+		ics.split("\n").forEach(function (el, i) {
+
+			if (el.indexOf(';VALUE=DATE') !== -1) {
+				return;
+			}
+
+			var findTypes = ['DTSTART', 'DTEND'];
+
+			var _el$split = el.split(':'),
+			    _el$split2 = _slicedToArray(_el$split, 2),
+			    dateTypePara = _el$split2[0],
+			    dateValue = _el$split2[1];
+
+			var _dateTypePara$split = dateTypePara.split(';'),
+			    _dateTypePara$split2 = _toArray(_dateTypePara$split),
+			    dateType = _dateTypePara$split2[0],
+			    dateParameters = _dateTypePara$split2.slice(1);
+
+			if (findTypes.indexOf(dateType) >= 0 && dateParameters.indexOf('VALUE=DATE') === -1 && dateValue.length === 8) {
+				ics = ics.replace(el, dateTypePara + ';VALUE=DATE:' + dateValue);
+			}
+		});
+
+		return ics;
+	};
+
+	VEvent.sanTrigger = function (ics) {
+		var regex = /^TRIGGER:P$/gm;
+		if (ics.match(regex)) {
+			ics = ics.replace(regex, 'TRIGGER:P0D');
+		}
+
+		return ics;
+	};
+
+	VEvent.fromRawICS = function (calendar, ics, uri) {
+		var etag = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : '';
+
+		var comp = void 0;
+
+		if (ics.search('T::') > 0) {
+			ics = VEvent.sanDate(ics);
+		}
+
+		if (ics.search('TRIGGER:P') > 0) {
+			ics = VEvent.sanTrigger(ics);
+		}
+
+		ics = VEvent.sanNoDateValue(ics);
+
+		try {
+			var jCal = ICAL.parse(ics);
+			comp = new ICAL.Component(jCal);
+		} catch (e) {
+			console.log(e);
+			throw new TypeError('given ics data was not valid');
+		}
+
+		return VEvent(calendar, comp, uri, etag);
+	};
+
+	VEvent.fromStartEnd = function (start, end, timezone) {
+		var uid = StringUtility.uid();
+		var comp = ICalFactory.newEvent(uid);
+		var uri = StringUtility.uid('Nextcloud', 'ics');
+		var vevent = VEvent(null, comp, uri);
+		var simple = vevent.getSimpleEvent();
+
+		simple.allDay = !start.hasTime() && !end.hasTime();
+		simple.dtstart = {
+			type: start.hasTime() ? 'datetime' : 'date',
+			value: start,
+			parameters: {
+				zone: timezone
+			}
+		};
+		simple.dtend = {
+			type: end.hasTime() ? 'datetime' : 'date',
+			value: end,
+			parameters: {
+				zone: timezone
+			}
+		};
+		simple.patch();
+
+		return vevent;
+	};
+
+	return VEvent;
+}]);
+'use strict';
+
+var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+
+var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
+
+
+app.factory('WebCal', ["$http", "Calendar", "VEvent", "TimezoneService", "WebCalService", "WebCalUtility", function ($http, Calendar, VEvent, TimezoneService, WebCalService, WebCalUtility) {
+	'use strict';
+
+
+	function WebCal(CalendarService, url, props) {
+		var context = {
+			calendarService: CalendarService,
+			updatedProperties: [],
+			storedUrl: props.href, 
+			url: WebCalUtility.fixURL(props.href)
+		};
+
+		var iface = Calendar(CalendarService, url, props);
+		iface._isAWebCalObject = true;
+
+		context.setUpdated = function (property) {
+			if (context.updatedProperties.indexOf(property) === -1) {
+				context.updatedProperties.push(property);
+			}
+		};
+
+		Object.defineProperties(iface, {
+			downloadUrl: {
+				get: function get() {
+					return context.url;
+				}
+			},
+			storedUrl: {
+				get: function get() {
+					return context.storedUrl;
+				}
+			}
+		});
+
+		iface.fcEventSource.events = function (start, end, timezone, callback) {
+			var fcAPI = this;
+			iface.fcEventSource.isRendering = true;
+			iface.emit(Calendar.hookFinishedRendering);
+
+			var allowDowngradeToHttp = !context.storedUrl.startsWith('https://');
+
+			var TimezoneServicePromise = TimezoneService.get(timezone);
+			var WebCalServicePromise = WebCalService.get(context.url, allowDowngradeToHttp);
+			Promise.all([TimezoneServicePromise, WebCalServicePromise]).then(function (results) {
+				var _results = _slicedToArray(results, 2),
+				    tz = _results[0],
+				    response = _results[1];
+
+				var promises = [];
+				var vevents = [];
+
+				response.vevents.forEach(function (ics) {
+					try {
+						var vevent = VEvent.fromRawICS(iface, ics);
+						var promise = vevent.getFcEvent(start, end, tz).then(function (vevent) {
+							vevents = vevents.concat(vevent);
+						}).catch(function (reason) {
+							iface.addWarning(reason);
+							console.log(event, reason);
+						});
+
+						promises.push(promise);
+					} catch (e) {
+						console.log(e);
+					}
+				});
+
+				return Promise.all(promises).then(function () {
+					callback(vevents);
+					fcAPI.reportEventChange();
+
+					iface.fcEventSource.isRendering = false;
+					iface.emit(Calendar.hookFinishedRendering);
+				});
+			}).catch(function (reason) {
+				if (reason === 'Unknown timezone' && timezone !== 'UTC') {
+					var eventsFn = iface.fcEventSource.events.bind(fcAPI);
+					eventsFn(start, end, 'UTC', callback);
+				} else if (reason.redirect === true) {
+					if (context.storedUrl === reason.new_url) {
+						return Promise.reject('Fatal error. Redirected URL matched original URL. Aborting');
+					}
+
+					context.storedUrl = reason.new_url;
+					context.url = reason.new_url;
+					context.setUpdated('storedUrl');
+					iface.update();
+					var _eventsFn = iface.fcEventSource.events.bind(fcAPI);
+					_eventsFn(start, end, timezone, callback);
+				} else {
+					iface.addWarning(reason);
+					console.log(reason);
+					iface.fcEventSource.isRendering = false;
+					iface.emit(Calendar.hookFinishedRendering);
+				}
+			});
+		};
+
+		iface.eventsAccessibleViaCalDAV = function () {
+			return false;
+		};
+
+		var parentGetUpdated = iface.getUpdated;
+		iface.getUpdated = function () {
+			var updated = parentGetUpdated();
+			return updated.concat(context.updatedProperties);
+		};
+
+		var parentResetUpdated = iface.resetUpdated;
+		iface.resetUpdated = function () {
+			parentResetUpdated();
+			context.updatedProperties = [];
+		};
+
+		iface.delete = function () {
+			localStorage.removeItem(iface.storedUrl);
+			return context.calendarService.delete(iface);
+		};
+
+		return iface;
+	}
+
+	WebCal.isWebCal = function (obj) {
+		return (typeof obj === 'undefined' ? 'undefined' : _typeof(obj)) === 'object' && obj !== null && obj._isAWebCalObject === true;
+	};
+
+	return WebCal;
 }]);
 'use strict';
 
@@ -2607,2000 +4726,6 @@ app.filter('timezoneWithoutContinentFilter', function () {
 });
 'use strict';
 
-var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
-
-app.factory('ImportFileWrapper', ["Hook", "ICalSplitterUtility", function (Hook, ICalSplitterUtility) {
-	'use strict';
-
-	function ImportFileWrapper(file) {
-		var context = {
-			file: file,
-			splittedICal: null,
-			selectedCalendar: null,
-			state: 0,
-			errors: 0,
-			progress: 0,
-			progressToReach: -1
-		};
-		var iface = {
-			_isAImportFileWrapperObject: true
-		};
-
-		context.checkIsDone = function () {
-			if (context.progress === context.progressToReach) {
-				context.state = ImportFileWrapper.stateDone;
-				iface.emit(ImportFileWrapper.hookDone);
-			}
-		};
-
-		Object.defineProperties(iface, {
-			file: {
-				get: function get() {
-					return context.file;
-				}
-			},
-			splittedICal: {
-				get: function get() {
-					return context.splittedICal;
-				}
-			},
-			selectedCalendar: {
-				get: function get() {
-					return context.selectedCalendar;
-				},
-				set: function set(selectedCalendar) {
-					context.selectedCalendar = selectedCalendar;
-				}
-			},
-			state: {
-				get: function get() {
-					return context.state;
-				},
-				set: function set(state) {
-					if (typeof state === 'number') {
-						context.state = state;
-					}
-				}
-			},
-			errors: {
-				get: function get() {
-					return context.errors;
-				},
-				set: function set(errors) {
-					if (typeof errors === 'number') {
-						var oldErrors = context.errors;
-						context.errors = errors;
-						iface.emit(ImportFileWrapper.hookErrorsChanged, errors, oldErrors);
-					}
-				}
-			},
-			progress: {
-				get: function get() {
-					return context.progress;
-				},
-				set: function set(progress) {
-					if (typeof progress === 'number') {
-						var oldProgress = context.progress;
-						context.progress = progress;
-						iface.emit(ImportFileWrapper.hookProgressChanged, progress, oldProgress);
-
-						context.checkIsDone();
-					}
-				}
-			},
-			progressToReach: {
-				get: function get() {
-					return context.progressToReach;
-				}
-			}
-		});
-
-		iface.wasCanceled = function () {
-			return context.state === ImportFileWrapper.stateCanceled;
-		};
-
-		iface.isAnalyzing = function () {
-			return context.state === ImportFileWrapper.stateAnalyzing;
-		};
-
-		iface.isAnalyzed = function () {
-			return context.state === ImportFileWrapper.stateAnalyzed;
-		};
-
-		iface.isScheduled = function () {
-			return context.state === ImportFileWrapper.stateScheduled;
-		};
-
-		iface.isImporting = function () {
-			return context.state === ImportFileWrapper.stateImporting;
-		};
-
-		iface.isDone = function () {
-			return context.state === ImportFileWrapper.stateDone;
-		};
-
-		iface.hasErrors = function () {
-			return context.errors > 0;
-		};
-
-		iface.isEmpty = function () {
-			return context.progressToReach === 0;
-		};
-
-		iface.read = function (afterReadCallback) {
-			var reader = new FileReader();
-
-			reader.onload = function (event) {
-				context.splittedICal = ICalSplitterUtility.split(event.target.result);
-				context.progressToReach = context.splittedICal.vevents.length + context.splittedICal.vjournals.length + context.splittedICal.vtodos.length;
-
-				if (context.progressToReach === 0) {
-					iface.state = ImportFileWrapper.stateEmpty;
-					iface.emit(ImportFileWrapper.hookDone);
-				} else {
-					iface.state = ImportFileWrapper.stateAnalyzed;
-					afterReadCallback();
-				}
-			};
-
-			reader.readAsText(file);
-		};
-
-		Object.assign(iface, Hook(context));
-
-		return iface;
-	}
-
-	ImportFileWrapper.isImportWrapper = function (obj) {
-		return obj instanceof ImportFileWrapper || (typeof obj === 'undefined' ? 'undefined' : _typeof(obj)) === 'object' && obj !== null && obj._isAImportFileWrapperObject !== null;
-	};
-
-	ImportFileWrapper.stateEmpty = -2;
-	ImportFileWrapper.stateCanceled = -1;
-	ImportFileWrapper.stateAnalyzing = 0;
-	ImportFileWrapper.stateAnalyzed = 1;
-	ImportFileWrapper.stateScheduled = 2;
-	ImportFileWrapper.stateImporting = 3;
-	ImportFileWrapper.stateDone = 4;
-
-	ImportFileWrapper.hookProgressChanged = 1;
-	ImportFileWrapper.hookDone = 2;
-	ImportFileWrapper.hookErrorsChanged = 3;
-
-	return ImportFileWrapper;
-}]);
-'use strict';
-
-var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
-
-
-app.factory('CalendarListItem', ["Calendar", "WebCal", "isSharingAPI", function (Calendar, WebCal, isSharingAPI) {
-	'use strict';
-
-	function CalendarListItem(calendar) {
-		var context = {
-			calendar: calendar,
-			isEditingShares: false,
-			isEditingProperties: false,
-			isDisplayingCalDAVUrl: false,
-			isDisplayingWebCalUrl: false,
-			isSendingMail: false
-		};
-		var iface = {
-			_isACalendarListItemObject: true
-		};
-
-		if (!Calendar.isCalendar(calendar)) {
-			return null;
-		}
-
-		Object.defineProperties(iface, {
-			calendar: {
-				get: function get() {
-					return context.calendar;
-				}
-			}
-		});
-
-		iface.displayCalDAVUrl = function () {
-			return context.isDisplayingCalDAVUrl;
-		};
-
-		iface.showCalDAVUrl = function () {
-			context.isDisplayingCalDAVUrl = true;
-		};
-
-		iface.displayWebCalUrl = function () {
-			return context.isDisplayingWebCalUrl;
-		};
-
-		iface.hideCalDAVUrl = function () {
-			context.isDisplayingCalDAVUrl = false;
-		};
-
-		iface.showWebCalUrl = function () {
-			context.isDisplayingWebCalUrl = true;
-		};
-
-		iface.hideWebCalUrl = function () {
-			context.isDisplayingWebCalUrl = false;
-		};
-
-		iface.showSharingIcon = function () {
-			var isCalendarShareable = context.calendar.isShareable();
-			var isCalendarShared = context.calendar.isShared();
-			var isCalendarPublishable = context.calendar.isPublishable();
-
-			if (isCalendarPublishable) {
-				return true;
-			}
-
-			if (!isSharingAPI && isCalendarShared && isCalendarShareable) {
-				return true;
-			}
-
-			return isSharingAPI && isCalendarShareable;
-		};
-
-		iface.isEditingShares = function () {
-			return context.isEditingShares;
-		};
-
-		iface.isSendingMail = function () {
-			return context.isSendingMail;
-		};
-
-		iface.toggleEditingShares = function () {
-			context.isEditingShares = !context.isEditingShares;
-		};
-
-		iface.toggleSendingMail = function () {
-			context.isSendingMail = !context.isSendingMail;
-		};
-
-		iface.isEditing = function () {
-			return context.isEditingProperties;
-		};
-
-		iface.displayActions = function () {
-			return !iface.isEditing();
-		};
-
-		iface.displayColorIndicator = function () {
-			return !iface.isEditing() && !context.calendar.isRendering();
-		};
-
-		iface.displaySpinner = function () {
-			return !iface.isEditing() && context.calendar.isRendering();
-		};
-
-		iface.openEditor = function () {
-			iface.color = context.calendar.color;
-			iface.displayname = context.calendar.displayname;
-
-			context.isEditingProperties = true;
-		};
-
-		iface.cancelEditor = function () {
-			iface.color = '';
-			iface.displayname = '';
-
-			context.isEditingProperties = false;
-		};
-
-		iface.saveEditor = function () {
-			context.calendar.color = iface.color;
-			context.calendar.displayname = iface.displayname;
-
-			iface.color = '';
-			iface.displayname = '';
-
-			context.isEditingProperties = false;
-		};
-
-		iface.isWebCal = function () {
-			return WebCal.isWebCal(context.calendar);
-		};
-
-		iface.color = '';
-		iface.displayname = '';
-
-		iface.order = 0;
-
-		iface.selectedSharee = '';
-
-		return iface;
-	}
-
-	CalendarListItem.isCalendarListItem = function (obj) {
-		return (typeof obj === 'undefined' ? 'undefined' : _typeof(obj)) === 'object' && obj !== null && obj._isACalendarListItemObject === true;
-	};
-
-	return CalendarListItem;
-}]);
-'use strict';
-
-var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
-
-var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
-
-
-app.factory('Calendar', ["$window", "Hook", "VEventService", "TimezoneService", "ColorUtility", "StringUtility", function ($window, Hook, VEventService, TimezoneService, ColorUtility, StringUtility) {
-	'use strict';
-
-
-	function Calendar(CalendarService, url, props) {
-		url = url || '';
-		props = props || {};
-
-		var context = {
-			calendarService: CalendarService,
-			fcEventSource: {},
-			components: props.components,
-			mutableProperties: {
-				color: props.color,
-				displayname: props.displayname,
-				enabled: props.enabled,
-				order: props.order,
-				published: props.published
-			},
-			updatedProperties: [],
-			tmpId: StringUtility.uid(),
-			url: url,
-			owner: props.owner,
-			shares: props.shares,
-			publishurl: props.publishurl,
-			publicurl: props.publicurl,
-			publishable: props.publishable,
-			warnings: [],
-			shareable: props.shareable,
-			writable: props.writable,
-			writableProperties: props.writableProperties
-		};
-		var iface = {
-			_isACalendarObject: true
-		};
-
-		context.fcEventSource.events = function (start, end, timezone, callback) {
-			var fcAPI = this;
-			context.fcEventSource.isRendering = true;
-			iface.emit(Calendar.hookFinishedRendering);
-
-			start = moment(start.stripZone().format());
-			end = moment(end.stripZone().format());
-
-			var TimezoneServicePromise = TimezoneService.get(timezone);
-			var VEventServicePromise = VEventService.getAll(iface, start, end);
-			Promise.all([TimezoneServicePromise, VEventServicePromise]).then(function (results) {
-				var _results = _slicedToArray(results, 2),
-				    tz = _results[0],
-				    events = _results[1];
-
-				var promises = [];
-				var vevents = [];
-
-				events.forEach(function (event) {
-					var promise = event.getFcEvent(start, end, tz).then(function (vevent) {
-						vevents = vevents.concat(vevent);
-					}).catch(function (reason) {
-						iface.addWarning(reason);
-						console.log(event, reason);
-					});
-
-					promises.push(promise);
-				});
-
-				return Promise.all(promises).then(function () {
-					callback(vevents);
-					fcAPI.reportEventChange();
-					context.fcEventSource.isRendering = false;
-
-					iface.emit(Calendar.hookFinishedRendering);
-				});
-			}).catch(function (reason) {
-				if (reason === 'Unknown timezone' && timezone !== 'UTC') {
-					var eventsFn = iface.fcEventSource.events.bind(fcAPI);
-					eventsFn(start, end, 'UTC', callback);
-				}
-
-				console.log(context.url, reason);
-			});
-		};
-		context.fcEventSource.editable = context.writable;
-		context.fcEventSource.calendar = iface;
-		context.fcEventSource.isRendering = false;
-
-		context.setUpdated = function (property) {
-			if (context.updatedProperties.indexOf(property) === -1) {
-				context.updatedProperties.push(property);
-			}
-		};
-
-		Object.defineProperties(iface, {
-			color: {
-				get: function get() {
-					return context.mutableProperties.color;
-				},
-				set: function set(color) {
-					var oldColor = context.mutableProperties.color;
-					if (color === oldColor) {
-						return;
-					}
-					context.mutableProperties.color = color;
-					context.setUpdated('color');
-					iface.emit(Calendar.hookColorChanged, color, oldColor);
-				}
-			},
-			textColor: {
-				get: function get() {
-					var colors = ColorUtility.extractRGBFromHexString(context.mutableProperties.color);
-					return ColorUtility.generateTextColorFromRGB(colors.r, colors.g, colors.b);
-				}
-			},
-			displayname: {
-				get: function get() {
-					return context.mutableProperties.displayname;
-				},
-				set: function set(displayname) {
-					var oldDisplayname = context.mutableProperties.displayname;
-					if (displayname === oldDisplayname) {
-						return;
-					}
-					context.mutableProperties.displayname = displayname;
-					context.setUpdated('displayname');
-					iface.emit(Calendar.hookDisplaynameChanged, displayname, oldDisplayname);
-				}
-			},
-			enabled: {
-				get: function get() {
-					return context.mutableProperties.enabled;
-				},
-				set: function set(enabled) {
-					var oldEnabled = context.mutableProperties.enabled;
-					if (enabled === oldEnabled) {
-						return;
-					}
-					context.mutableProperties.enabled = enabled;
-					context.setUpdated('enabled');
-					iface.emit(Calendar.hookEnabledChanged, enabled, oldEnabled);
-				}
-			},
-			order: {
-				get: function get() {
-					return context.mutableProperties.order;
-				},
-				set: function set(order) {
-					var oldOrder = context.mutableProperties.order;
-					if (order === oldOrder) {
-						return;
-					}
-					context.mutableProperties.order = order;
-					context.setUpdated('order');
-					iface.emit(Calendar.hookOrderChanged, order, oldOrder);
-				}
-
-			},
-			components: {
-				get: function get() {
-					return context.components;
-				}
-			},
-			url: {
-				get: function get() {
-					return context.url;
-				}
-			},
-			downloadUrl: {
-				get: function get() {
-					var url = context.url;
-					if (url.slice(url.length - 1) === '/') {
-						url = url.slice(0, url.length - 1);
-					}
-					url += '?export';
-
-					return url;
-				},
-				configurable: true
-			},
-			caldav: {
-				get: function get() {
-					return $window.location.origin + context.url;
-				}
-			},
-			publishurl: {
-				get: function get() {
-					return context.publishurl;
-				},
-				set: function set(publishurl) {
-					context.publishurl = publishurl;
-				}
-			},
-			published: {
-				get: function get() {
-					return context.mutableProperties.published;
-				},
-				set: function set(published) {
-					context.mutableProperties.published = published;
-				}
-			},
-			publishable: {
-				get: function get() {
-					return context.publishable;
-				}
-			},
-			publicurl: {
-				get: function get() {
-					return context.publicurl;
-				},
-				set: function set(publicurl) {
-					context.publicurl = publicurl;
-				}
-			},
-			fcEventSource: {
-				get: function get() {
-					return context.fcEventSource;
-				}
-			},
-			shares: {
-				get: function get() {
-					return context.shares;
-				}
-			},
-			tmpId: {
-				get: function get() {
-					return context.tmpId;
-				}
-			},
-			warnings: {
-				get: function get() {
-					return context.warnings;
-				}
-			},
-			owner: {
-				get: function get() {
-					return context.owner;
-				}
-			}
-		});
-
-		iface.hasUpdated = function () {
-			return context.updatedProperties.length !== 0;
-		};
-
-		iface.getUpdated = function () {
-			return context.updatedProperties;
-		};
-
-		iface.resetUpdated = function () {
-			context.updatedProperties = [];
-		};
-
-		iface.addWarning = function (msg) {
-			context.warnings.push(msg);
-		};
-
-		iface.hasWarnings = function () {
-			return context.warnings.length > 0;
-		};
-
-		iface.resetWarnings = function () {
-			context.warnings = [];
-		};
-
-		iface.toggleEnabled = function () {
-			context.mutableProperties.enabled = !context.mutableProperties.enabled;
-			context.setUpdated('enabled');
-			iface.emit(Calendar.hookEnabledChanged, context.mutableProperties.enabled, !context.mutableProperties.enabled);
-		};
-
-		iface.isShared = function () {
-			return context.shares.groups.length !== 0 || context.shares.users.length !== 0;
-		};
-
-		iface.isPublished = function () {
-			return context.mutableProperties.published;
-		};
-
-		iface.isPublishable = function () {
-			return context.publishable;
-		};
-
-		iface.isShareable = function () {
-			return context.shareable;
-		};
-
-		iface.isRendering = function () {
-			return context.fcEventSource.isRendering;
-		};
-
-		iface.isWritable = function () {
-			return context.writable;
-		};
-
-		iface.arePropertiesWritable = function () {
-			return context.writableProperties;
-		};
-
-		iface.eventsAccessibleViaCalDAV = function () {
-			return true;
-		};
-
-		iface.refresh = function () {
-		};
-
-		iface.update = function () {
-			return context.calendarService.update(iface);
-		};
-
-		iface.delete = function () {
-			return context.calendarService.delete(iface);
-		};
-
-		iface.share = function (shareType, shareWith, writable, existingShare) {
-			return context.calendarService.share(iface, shareType, shareWith, writable, existingShare);
-		};
-
-		iface.unshare = function (shareType, shareWith, writable, existingShare) {
-			return context.calendarService.unshare(iface, shareType, shareWith, writable, existingShare);
-		};
-
-		iface.publish = function () {
-			return context.calendarService.publish(iface);
-		};
-
-		iface.unpublish = function () {
-			return context.calendarService.unpublish(iface);
-		};
-
-		Object.assign(iface, Hook(context));
-
-		return iface;
-	}
-
-	Calendar.isCalendar = function (obj) {
-		return (typeof obj === 'undefined' ? 'undefined' : _typeof(obj)) === 'object' && obj !== null && obj._isACalendarObject === true;
-	};
-
-	Calendar.hookFinishedRendering = 1;
-	Calendar.hookColorChanged = 2;
-	Calendar.hookDisplaynameChanged = 3;
-	Calendar.hookEnabledChanged = 4;
-	Calendar.hookOrderChanged = 5;
-
-	return Calendar;
-}]);
-'use strict';
-
-var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
-
-
-app.factory('FcEvent', ["SimpleEvent", function (SimpleEvent) {
-	'use strict';
-
-
-	function FcEvent(vevent, event, start, end) {
-		var context = { vevent: vevent, event: event };
-		context.iCalEvent = new ICAL.Event(event);
-
-		var id = context.vevent.uri;
-		if (event.hasProperty('recurrence-id')) {
-			id += context.event.getFirstPropertyValue('recurrence-id').toICALString();
-		}
-
-		var allDay = start.icaltype === 'date' && end.icaltype === 'date';
-		context.allDay = allDay;
-
-		var iface = {
-			_isAFcEventObject: true,
-			id: id,
-			allDay: allDay,
-			start: start.toJSDate(),
-			end: end.toJSDate(),
-			repeating: context.iCalEvent.isRecurring(),
-			className: ['fcCalendar-id-' + vevent.calendar.tmpId],
-			editable: vevent.calendar.isWritable(),
-			backgroundColor: vevent.calendar.color,
-			borderColor: vevent.calendar.color,
-			textColor: vevent.calendar.textColor,
-			title: event.getFirstPropertyValue('summary')
-		};
-
-		Object.defineProperties(iface, {
-			vevent: {
-				get: function get() {
-					return context.vevent;
-				},
-				enumerable: true
-			},
-			event: {
-				get: function get() {
-					return context.event;
-				},
-				enumerable: true
-			},
-			calendar: {
-				get: function get() {
-					return context.vevent.calendar;
-				},
-				enumerable: true
-			}
-		});
-
-		iface.getSimpleEvent = function () {
-			return SimpleEvent(context.event);
-		};
-
-		iface.drop = function (delta, isAllDay, timezone, defaultTimedEventMomentDuration, defaultAllDayEventMomentDuration) {
-			delta = new ICAL.Duration().fromSeconds(delta.asSeconds());
-
-			var timedDuration = new ICAL.Duration().fromSeconds(defaultTimedEventMomentDuration.asSeconds());
-			var allDayDuration = new ICAL.Duration().fromSeconds(defaultAllDayEventMomentDuration.asSeconds());
-
-			var dtstartProp = context.event.getFirstProperty('dtstart');
-			var dtstart = dtstartProp.getFirstValue();
-			dtstart.isDate = isAllDay;
-			dtstart.addDuration(delta);
-			dtstart.zone = isAllDay ? 'floating' : dtstart.zone;
-
-			if (context.allDay && !isAllDay) {
-				var timezoneObject = ICAL.TimezoneService.get(timezone);
-
-				if (timezone === 'UTC') {
-					timezone = 'Z';
-				}
-
-				dtstart.zone = timezoneObject;
-				if (timezone !== 'Z') {
-					dtstartProp.setParameter('tzid', timezone);
-
-					if (context.event.parent) {
-						context.event.parent.addSubcomponent(timezoneObject.component);
-					}
-				}
-			}
-			if (!context.allDay && isAllDay) {
-				dtstartProp.removeParameter('tzid');
-			}
-			context.event.updatePropertyWithValue('dtstart', dtstart);
-
-			if (context.allDay !== isAllDay) {
-				if (!context.event.hasProperty('duration')) {
-					var dtend = dtstart.clone();
-					dtend.addDuration(isAllDay ? allDayDuration : timedDuration);
-					var dtendProp = context.event.updatePropertyWithValue('dtend', dtend);
-
-					var tzid = dtstartProp.getParameter('tzid');
-					if (tzid) {
-						dtendProp.setParameter('tzid', tzid);
-					} else {
-						dtendProp.removeParameter('tzid');
-					}
-				} else {
-					context.event.updatePropertyWithValue('duration', isAllDay ? allDayDuration : timedDuration);
-				}
-			} else {
-				if (context.event.hasProperty('dtend')) {
-					var _dtend = context.event.getFirstPropertyValue('dtend');
-					_dtend.addDuration(delta);
-					context.event.updatePropertyWithValue('dtend', _dtend);
-				}
-			}
-
-			context.allDay = isAllDay;
-			context.vevent.touch();
-		};
-
-		iface.resize = function (delta) {
-			delta = new ICAL.Duration().fromSeconds(delta.asSeconds());
-
-			if (context.event.hasProperty('duration')) {
-				var duration = context.event.getFirstPropertyValue('duration');
-				duration.fromSeconds(delta.toSeconds() + duration.toSeconds());
-				context.event.updatePropertyWithValue('duration', duration);
-			} else if (context.event.hasProperty('dtend')) {
-				var dtend = context.event.getFirstPropertyValue('dtend');
-				dtend.addDuration(delta);
-				context.event.updatePropertyWithValue('dtend', dtend);
-			} else if (context.event.hasProperty('dtstart')) {
-				var dtstart = event.getFirstProperty('dtstart');
-				var _dtend2 = dtstart.getFirstValue().clone();
-				_dtend2.addDuration(delta);
-
-				var prop = context.event.addPropertyWithValue('dtend', _dtend2);
-
-				var tzid = dtstart.getParameter('tzid');
-				if (tzid) {
-					prop.setParameter('tzid', tzid);
-				}
-			}
-
-			context.vevent.touch();
-		};
-
-		iface.lock = function () {
-			context.lock = true;
-		};
-
-		iface.unlock = function () {
-			context.lock = false;
-		};
-
-		return iface;
-	}
-
-	FcEvent.isFcEvent = function (obj) {
-		return (typeof obj === 'undefined' ? 'undefined' : _typeof(obj)) === 'object' && obj !== null && obj._isAFcEventObject === true;
-	};
-
-	return FcEvent;
-}]);
-'use strict';
-
-
-app.factory('Hook', function () {
-  'use strict';
-
-  return function Hook(context) {
-    context.hooks = {};
-    var iface = {};
-
-    iface.emit = function (identifier, newValue, oldValue) {
-      if (Array.isArray(context.hooks[identifier])) {
-        context.hooks[identifier].forEach(function (callback) {
-          callback(newValue, oldValue);
-        });
-      }
-    };
-
-    iface.register = function (identifier, callback) {
-      context.hooks[identifier] = context.hooks[identifier] || [];
-      context.hooks[identifier].push(callback);
-    };
-
-    return iface;
-  };
-});
-'use strict';
-
-var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
-
-
-app.factory('SimpleEvent', function () {
-	'use strict';
-
-	var defaults = {
-		'summary': null,
-		'location': null,
-		'organizer': null,
-		'class': null,
-		'description': null,
-		'status': null,
-		'alarm': null,
-		'attendee': null,
-		'dtstart': null,
-		'dtend': null,
-		'repeating': null,
-		'rdate': null,
-		'rrule': null,
-		'exdate': null
-	};
-
-	var attendeeParameters = ['role', 'rsvp', 'partstat', 'cutype', 'cn', 'delegated-from', 'delegated-to'];
-
-	var organizerParameters = ['cn'];
-
-	var simpleParser = {
-		date: function date(data, vevent, key, parameters) {
-			parameters = (parameters || []).concat(['tzid']);
-			simpleParser._parseSingle(data, vevent, key, parameters, function (p) {
-				var first = p.getFirstValue();
-				return p.type === 'duration' ? first.toSeconds() : moment(first.toJSDate());
-			});
-		},
-		dates: function dates(data, vevent, key, parameters) {
-			parameters = (parameters || []).concat(['tzid']);
-			simpleParser._parseMultiple(data, vevent, key, parameters, function (p) {
-				var values = p.getValues(),
-				    usableValues = [];
-
-				values.forEach(function (value) {
-					if (p.type === 'duration') {
-						usableValues.push(value.toSeconds());
-					} else {
-						usableValues.push(moment(value.toJSDate()));
-					}
-				});
-
-				return usableValues;
-			});
-		},
-		string: function string(data, vevent, key, parameters) {
-			simpleParser._parseSingle(data, vevent, key, parameters, function (p) {
-				return p.isMultiValue ? p.getValues() : p.getFirstValue();
-			});
-		},
-		strings: function strings(data, vevent, key, parameters) {
-			simpleParser._parseMultiple(data, vevent, key, parameters, function (p) {
-				return p.isMultiValue ? p.getValues() : p.getFirstValue();
-			});
-		},
-		_parseSingle: function _parseSingle(data, vevent, key, parameters, valueParser) {
-			var prop = vevent.getFirstProperty(key);
-			if (!prop) {
-				return;
-			}
-
-			data[key] = {
-				parameters: simpleParser._parseParameters(prop, parameters),
-				type: prop.type
-			};
-
-			if (prop.isMultiValue) {
-				data[key].values = valueParser(prop);
-			} else {
-				data[key].value = valueParser(prop);
-			}
-		},
-		_parseMultiple: function _parseMultiple(data, vevent, key, parameters, valueParser) {
-			data[key] = data[key] || [];
-
-			var properties = vevent.getAllProperties(key);
-			var group = 0;
-
-			properties.forEach(function (property) {
-				var currentElement = {
-					group: group,
-					parameters: simpleParser._parseParameters(property, parameters),
-					type: property.type
-				};
-
-				if (property.isMultiValue) {
-					currentElement.values = valueParser(property);
-				} else {
-					currentElement.value = valueParser(property);
-				}
-
-				data[key].push(currentElement);
-				property.setParameter('x-nc-group-id', group.toString());
-				group++;
-			});
-		},
-		_parseParameters: function _parseParameters(prop, para) {
-			var parameters = {};
-
-			if (!para) {
-				return parameters;
-			}
-
-			para.forEach(function (p) {
-				parameters[p] = prop.getParameter(p);
-			});
-
-			return parameters;
-		}
-	};
-
-	var simpleReader = {
-		date: function date(vevent, oldSimpleData, newSimpleData, key, parameters) {
-			parameters = (parameters || []).concat(['tzid']);
-			simpleReader._readSingle(vevent, oldSimpleData, newSimpleData, key, parameters, function (v, isMultiValue) {
-				return v.type === 'duration' ? ICAL.Duration.fromSeconds(v.value) : ICAL.Time.fromJSDate(v.value.toDate());
-			});
-		},
-		dates: function dates(vevent, oldSimpleData, newSimpleData, key, parameters) {
-			parameters = (parameters || []).concat(['tzid']);
-			simpleReader._readMultiple(vevent, oldSimpleData, newSimpleData, key, parameters, function (v, isMultiValue) {
-				var values = [];
-
-				v.values.forEach(function (value) {
-					if (v.type === 'duration') {
-						values.push(ICAL.Duration.fromSeconds(value));
-					} else {
-						values.push(ICAL.Time.fromJSDate(value.toDate()));
-					}
-				});
-
-				return values;
-			});
-		},
-		string: function string(vevent, oldSimpleData, newSimpleData, key, parameters) {
-			simpleReader._readSingle(vevent, oldSimpleData, newSimpleData, key, parameters, function (v, isMultiValue) {
-				return isMultiValue ? v.values : v.value;
-			});
-		},
-		strings: function strings(vevent, oldSimpleData, newSimpleData, key, parameters) {
-			simpleReader._readMultiple(vevent, oldSimpleData, newSimpleData, key, parameters, function (v, isMultiValue) {
-				return isMultiValue ? v.values : v.value;
-			});
-		},
-		_readSingle: function _readSingle(vevent, oldSimpleData, newSimpleData, key, parameters, valueReader) {
-			if (!newSimpleData[key]) {
-				return;
-			}
-			if (!newSimpleData[key].hasOwnProperty('value') && !newSimpleData[key].hasOwnProperty('values')) {
-				return;
-			}
-			var isMultiValue = newSimpleData[key].hasOwnProperty('values');
-
-			var prop = vevent.updatePropertyWithValue(key, valueReader(newSimpleData[key], isMultiValue));
-			simpleReader._readParameters(prop, newSimpleData[key], parameters);
-		},
-		_readMultiple: function _readMultiple(vevent, oldSimpleData, newSimpleData, key, parameters, valueReader) {
-			var oldGroups = [];
-			var properties = void 0,
-			    pKey = void 0,
-			    groupId = void 0;
-
-			oldSimpleData[key] = oldSimpleData[key] || [];
-			oldSimpleData[key].forEach(function (e) {
-				oldGroups.push(e.group);
-			});
-
-			newSimpleData[key] = newSimpleData[key] || [];
-			newSimpleData[key].forEach(function (e) {
-				var isMultiValue = e.hasOwnProperty('values');
-				var value = valueReader(e, isMultiValue);
-
-				if (oldGroups.indexOf(e.group) === -1) {
-					var property = new ICAL.Property(key);
-					simpleReader._setProperty(property, value, isMultiValue);
-					simpleReader._readParameters(property, e, parameters);
-					vevent.addProperty(property);
-				} else {
-					oldGroups.splice(oldGroups.indexOf(e.group), 1);
-
-					properties = vevent.getAllProperties(key);
-					for (pKey in properties) {
-						if (!properties.hasOwnProperty(pKey)) {
-							continue;
-						}
-
-						groupId = properties[pKey].getParameter('x-nc-group-id');
-						if (groupId === null) {
-							continue;
-						}
-						if (parseInt(groupId) === e.group) {
-							simpleReader._setProperty(properties[pKey], value, isMultiValue);
-							simpleReader._readParameters(properties[pKey], e, parameters);
-						}
-					}
-				}
-			});
-
-			properties = vevent.getAllProperties(key);
-			properties.forEach(function (property) {
-				groupId = property.getParameter('x-nc-group-id');
-				if (oldGroups.indexOf(parseInt(groupId)) !== -1) {
-					vevent.removeProperty(property);
-				}
-				property.removeParameter('x-nc-group-id');
-			});
-		},
-		_readParameters: function _readParameters(prop, simple, para) {
-			if (!para) {
-				return;
-			}
-			if (!simple.parameters) {
-				return;
-			}
-
-			para.forEach(function (p) {
-				if (simple.parameters[p]) {
-					prop.setParameter(p, simple.parameters[p]);
-				} else {
-					prop.removeParameter(simple.parameters[p]);
-				}
-			});
-		},
-		_setProperty: function _setProperty(prop, value, isMultiValue) {
-			if (isMultiValue) {
-				prop.setValues(value);
-			} else {
-				prop.setValue(value);
-			}
-		}
-	};
-
-	var simpleProperties = {
-		'summary': { parser: simpleParser.string, reader: simpleReader.string },
-		'location': { parser: simpleParser.string, reader: simpleReader.string },
-		'attendee': {
-			parser: simpleParser.strings,
-			reader: simpleReader.strings,
-			parameters: attendeeParameters
-		},
-		'organizer': {
-			parser: simpleParser.string,
-			reader: simpleReader.string,
-			parameters: organizerParameters
-		},
-		'class': { parser: simpleParser.string, reader: simpleReader.string },
-		'description': {
-			parser: simpleParser.string,
-			reader: simpleReader.string
-		},
-		'status': { parser: simpleParser.string, reader: simpleReader.string }
-	};
-
-	var specificParser = {
-		alarm: function alarm(data, vevent) {
-			data.alarm = data.alarm || [];
-
-			var alarms = vevent.getAllSubcomponents('valarm');
-			var group = 0;
-			alarms.forEach(function (alarm) {
-				var alarmData = {
-					group: group,
-					action: {},
-					trigger: {},
-					repeat: {},
-					duration: {},
-					attendee: []
-				};
-
-				simpleParser.string(alarmData, alarm, 'action');
-				simpleParser.date(alarmData, alarm, 'trigger');
-				simpleParser.string(alarmData, alarm, 'repeat');
-				simpleParser.date(alarmData, alarm, 'duration');
-				simpleParser.strings(alarmData, alarm, 'attendee', attendeeParameters);
-
-
-				if (alarmData.trigger.type === 'duration' && alarm.hasProperty('trigger')) {
-					var trigger = alarm.getFirstProperty('trigger');
-					var related = trigger.getParameter('related');
-					if (related) {
-						alarmData.trigger.related = related;
-					} else {
-						alarmData.trigger.related = 'start';
-					}
-				}
-
-				data.alarm.push(alarmData);
-
-				alarm.getFirstProperty('action').setParameter('x-nc-group-id', group.toString());
-				group++;
-			});
-		},
-		date: function date(data, vevent) {
-			var dtstart = vevent.getFirstPropertyValue('dtstart');
-			var dtend = void 0;
-
-			if (vevent.hasProperty('dtend')) {
-				dtend = vevent.getFirstPropertyValue('dtend');
-			} else if (vevent.hasProperty('duration')) {
-				dtend = dtstart.clone();
-				dtend.addDuration(vevent.getFirstPropertyValue('duration'));
-			} else {
-				dtend = dtstart.clone();
-			}
-
-			data.dtstart = {
-				parameters: {
-					zone: dtstart.zone.toString()
-				},
-				type: dtstart.icaltype,
-				value: moment({
-					years: dtstart.year,
-					months: dtstart.month - 1,
-					date: dtstart.day,
-					hours: dtstart.hour,
-					minutes: dtstart.minute,
-					seconds: dtstart.seconds
-				})
-			};
-			data.dtend = {
-				parameters: {
-					zone: dtend.zone.toString()
-				},
-				type: dtend.icaltype,
-				value: moment({
-					years: dtend.year,
-					months: dtend.month - 1,
-					date: dtend.day,
-					hours: dtend.hour,
-					minutes: dtend.minute,
-					seconds: dtend.seconds
-				})
-			};
-			data.allDay = dtstart.icaltype === 'date' && dtend.icaltype === 'date';
-		},
-		repeating: function repeating(data, vevent) {
-			var iCalEvent = new ICAL.Event(vevent);
-
-			data.repeating = iCalEvent.isRecurring();
-
-			var rrule = vevent.getFirstPropertyValue('rrule');
-			if (rrule) {
-				data.rrule = {
-					count: rrule.count,
-					freq: rrule.freq,
-					interval: rrule.interval,
-					parameters: rrule.parts,
-					until: null
-				};
-
-			} else {
-				data.rrule = {
-					freq: 'NONE'
-				};
-			}
-		}
-	};
-
-	var specificReader = {
-		alarm: function alarm(vevent, oldSimpleData, newSimpleData) {
-			var components = {},
-			    key = 'alarm';
-
-			function getAlarmGroup(alarmData) {
-				return alarmData.group;
-			}
-
-			oldSimpleData[key] = oldSimpleData[key] || [];
-			var oldGroups = oldSimpleData[key].map(getAlarmGroup);
-
-			newSimpleData[key] = newSimpleData[key] || [];
-			var newGroups = newSimpleData[key].map(getAlarmGroup);
-
-			var removedAlarms = oldGroups.filter(function (group) {
-				return newGroups.indexOf(group) === -1;
-			});
-
-			vevent.getAllSubcomponents('valarm').forEach(function (alarm) {
-				var group = alarm.getFirstProperty('action').getParameter('x-nc-group-id');
-				components[group] = alarm;
-			});
-
-			removedAlarms.forEach(function (group) {
-				if (components[group]) {
-					vevent.removeSubcomponent(components[group]);
-					delete components[group];
-				}
-			});
-
-			newSimpleData[key].forEach(function (alarmData) {
-				var valarm = void 0,
-				    oldSimpleAlarmData = void 0;
-
-				if (oldGroups.indexOf(alarmData.group) === -1) {
-					valarm = new ICAL.Component('VALARM');
-					vevent.addSubcomponent(valarm);
-					oldSimpleAlarmData = {};
-				} else {
-					valarm = components[alarmData.group];
-					oldSimpleAlarmData = oldSimpleData.alarm.find(function (alarm) {
-						return alarm.group === alarmData.group;
-					});
-				}
-
-				simpleReader.string(valarm, oldSimpleAlarmData, alarmData, 'action', []);
-				simpleReader.date(valarm, oldSimpleAlarmData, alarmData, 'trigger', []);
-				simpleReader.string(valarm, oldSimpleAlarmData, alarmData, 'repeat', []);
-				simpleReader.date(valarm, oldSimpleAlarmData, alarmData, 'duration', []);
-				simpleReader.strings(valarm, oldSimpleAlarmData, alarmData, 'attendee', attendeeParameters);
-
-				valarm.getFirstProperty('action').removeParameter('x-nc-group-id');
-			});
-		},
-		date: function date(vevent, oldSimpleData, newSimpleData) {
-			vevent.removeAllProperties('dtstart');
-			vevent.removeAllProperties('dtend');
-			vevent.removeAllProperties('duration');
-
-			var isNewSimpleDataAllDay = newSimpleData.dtstart.type === 'date' && newSimpleData.dtend.type === 'date';
-			if (isNewSimpleDataAllDay) {
-				newSimpleData.dtstart.parameters.zone = 'floating';
-				newSimpleData.dtend.parameters.zone = 'floating';
-			}
-
-			newSimpleData.dtstart.parameters.zone = newSimpleData.dtstart.parameters.zone || 'floating';
-			newSimpleData.dtend.parameters.zone = newSimpleData.dtend.parameters.zone || 'floating';
-
-			if (newSimpleData.dtstart.parameters.zone !== 'floating' && !ICAL.TimezoneService.has(newSimpleData.dtstart.parameters.zone)) {
-				throw new Error('Requested timezone not found (' + newSimpleData.dtstart.parameters.zone + ')');
-			}
-			if (newSimpleData.dtend.parameters.zone !== 'floating' && !ICAL.TimezoneService.has(newSimpleData.dtend.parameters.zone)) {
-				throw new Error('Requested timezone not found (' + newSimpleData.dtend.parameters.zone + ')');
-			}
-
-			var start = ICAL.Time.fromJSDate(newSimpleData.dtstart.value.toDate(), false);
-			start.isDate = isNewSimpleDataAllDay;
-			var end = ICAL.Time.fromJSDate(newSimpleData.dtend.value.toDate(), false);
-			end.isDate = isNewSimpleDataAllDay;
-
-			var alreadyStoredTimezones = ['UTC'];
-			var vtimezones = vevent.parent.getAllSubcomponents('vtimezone');
-			vtimezones.forEach(function (vtimezone) {
-				alreadyStoredTimezones.push(vtimezone.getFirstPropertyValue('tzid'));
-			});
-
-			var startProp = new ICAL.Property('dtstart', vevent);
-			if (newSimpleData.dtstart.parameters.zone !== 'floating') {
-				if (newSimpleData.dtstart.parameters.zone !== 'UTC') {
-					startProp.setParameter('tzid', newSimpleData.dtstart.parameters.zone);
-				}
-
-				var startTz = ICAL.TimezoneService.get(newSimpleData.dtstart.parameters.zone);
-				start.zone = startTz;
-				if (alreadyStoredTimezones.indexOf(newSimpleData.dtstart.parameters.zone) === -1) {
-					vevent.parent.addSubcomponent(startTz.component);
-					alreadyStoredTimezones.push(newSimpleData.dtstart.parameters.zone);
-				}
-			}
-			startProp.setValue(start);
-
-			var endProp = new ICAL.Property('dtend', vevent);
-			if (newSimpleData.dtend.parameters.zone !== 'floating') {
-				if (newSimpleData.dtend.parameters.zone !== 'UTC') {
-					endProp.setParameter('tzid', newSimpleData.dtend.parameters.zone);
-				}
-
-				var endTz = ICAL.TimezoneService.get(newSimpleData.dtend.parameters.zone);
-				end.zone = endTz;
-				if (alreadyStoredTimezones.indexOf(newSimpleData.dtend.parameters.zone) === -1) {
-					vevent.parent.addSubcomponent(endTz.component);
-				}
-			}
-			endProp.setValue(end);
-
-			vevent.addProperty(startProp);
-			vevent.addProperty(endProp);
-		},
-		repeating: function repeating(vevent, oldSimpleData, newSimpleData) {
-			if (newSimpleData.rrule === null || newSimpleData.rrule.freq === 'NONE') {
-				vevent.removeAllProperties('rdate');
-				vevent.removeAllProperties('rrule');
-				vevent.removeAllProperties('exdate');
-
-				return;
-			}
-
-			if (newSimpleData.rrule.dontTouch) {
-				return;
-			}
-
-			var params = {
-				interval: newSimpleData.rrule.interval,
-				freq: newSimpleData.rrule.freq
-			};
-
-			if (newSimpleData.rrule.count) {
-				params.count = newSimpleData.rrule.count;
-			}
-
-			var rrule = new ICAL.Recur(params);
-			vevent.updatePropertyWithValue('rrule', rrule);
-		}
-	};
-
-	function SimpleEvent(event) {
-		var context = {
-			event: event,
-			patched: false,
-			oldProperties: {}
-		};
-
-		var iface = {
-			_isASimpleEventObject: true
-		};
-		angular.extend(iface, defaults);
-
-		context.generateOldProperties = function () {
-			context.oldProperties = {};
-
-			for (var key in defaults) {
-				context.oldProperties[key] = angular.copy(iface[key]);
-			}
-		};
-
-		iface.patch = function () {
-			if (context.patched) {
-				throw new Error('SimpleEvent was already patched, patching not possible');
-			}
-
-			for (var simpleKey in simpleProperties) {
-				var simpleProperty = simpleProperties[simpleKey];
-
-				var reader = simpleProperty.reader;
-				var parameters = simpleProperty.parameters;
-				if (context.oldProperties[simpleKey] !== iface[simpleKey]) {
-					if (iface[simpleKey] === null) {
-						context.event.removeAllProperties(simpleKey);
-					} else {
-						reader(context.event, context.oldProperties, iface, simpleKey, parameters);
-					}
-				}
-			}
-
-			for (var specificKey in specificReader) {
-				var _reader = specificReader[specificKey];
-				_reader(context.event, context.oldProperties, iface);
-			}
-
-			context.patched = true;
-		};
-
-		for (var simpleKey in simpleProperties) {
-			var simpleProperty = simpleProperties[simpleKey];
-
-			var parser = simpleProperty.parser;
-			var parameters = simpleProperty.parameters;
-			if (context.event.hasProperty(simpleKey)) {
-				parser(iface, context.event, simpleKey, parameters);
-			}
-		}
-
-		for (var specificKey in specificParser) {
-			var _parser = specificParser[specificKey];
-			_parser(iface, context.event);
-		}
-
-		context.generateOldProperties();
-
-		return iface;
-	}
-
-	SimpleEvent.isSimpleEvent = function (obj) {
-		return (typeof obj === 'undefined' ? 'undefined' : _typeof(obj)) === 'object' && obj !== null && obj._isASimpleEventObject === true;
-	};
-
-	return SimpleEvent;
-});
-'use strict';
-
-var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
-
-app.factory('SplittedICal', function () {
-	'use strict';
-
-	function SplittedICal(name, color) {
-		var context = {
-			name: name,
-			color: color,
-			vevents: [],
-			vjournals: [],
-			vtodos: []
-		};
-		var iface = {
-			_isASplittedICalObject: true
-		};
-
-		Object.defineProperties(iface, {
-			name: {
-				get: function get() {
-					return context.name;
-				}
-			},
-			color: {
-				get: function get() {
-					return context.color;
-				}
-			},
-			vevents: {
-				get: function get() {
-					return context.vevents;
-				}
-			},
-			vjournals: {
-				get: function get() {
-					return context.vjournals;
-				}
-			},
-			vtodos: {
-				get: function get() {
-					return context.vtodos;
-				}
-			},
-			objects: {
-				get: function get() {
-					return [].concat(context.vevents).concat(context.vjournals).concat(context.vtodos);
-				}
-			}
-		});
-
-		iface.addObject = function (componentName, object) {
-			switch (componentName) {
-				case 'vevent':
-					context.vevents.push(object);
-					break;
-
-				case 'vjournal':
-					context.vjournals.push(object);
-					break;
-
-				case 'vtodo':
-					context.vtodos.push(object);
-					break;
-
-				default:
-					break;
-			}
-		};
-
-		return iface;
-	}
-
-	SplittedICal.isSplittedICal = function (obj) {
-		return obj instanceof SplittedICal || (typeof obj === 'undefined' ? 'undefined' : _typeof(obj)) === 'object' && obj !== null && obj._isASplittedICalObject !== null;
-	};
-
-	return SplittedICal;
-});
-'use strict';
-
-
-app.factory('Timezone', function () {
-	'use strict';
-
-	var timezone = function Timezone(data) {
-		angular.extend(this, {
-			_props: {}
-		});
-
-		if (data instanceof ICAL.Timezone) {
-			this._props.jCal = data;
-			this._props.name = data.tzid;
-		} else if (typeof data === 'string') {
-			var jCal = ICAL.parse(data);
-			var components = new ICAL.Component(jCal);
-			var iCalTimezone = null;
-			if (components.name === 'vtimezone') {
-				iCalTimezone = new ICAL.Timezone(components);
-			} else {
-				iCalTimezone = new ICAL.Timezone(components.getFirstSubcomponent('vtimezone'));
-			}
-			this._props.jCal = iCalTimezone;
-			this._props.name = iCalTimezone.tzid;
-		}
-	};
-
-	timezone.prototype = {
-		get jCal() {
-			return this._props.jCal;
-		},
-		get name() {
-			return this._props.name;
-		}
-	};
-
-	return timezone;
-});
-'use strict';
-
-var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
-
-
-app.factory('VEvent', ["TimezoneService", "FcEvent", "SimpleEvent", "ICalFactory", "StringUtility", function (TimezoneService, FcEvent, SimpleEvent, ICalFactory, StringUtility) {
-	'use strict';
-
-
-	function VEvent(calendar, comp, uri) {
-		var etag = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : '';
-
-		var context = { calendar: calendar, comp: comp, uri: uri, etag: etag };
-		var iface = {
-			_isAVEventObject: true
-		};
-
-		if (!context.comp || !context.comp.jCal || context.comp.jCal.length === 0) {
-			throw new TypeError('Given comp is not a valid calendar');
-		}
-
-		var vtimezones = comp.getAllSubcomponents('vtimezone');
-		vtimezones.forEach(function (vtimezone) {
-			var timezone = new ICAL.Timezone(vtimezone);
-			ICAL.TimezoneService.register(timezone.tzid, timezone);
-		});
-
-		if (!uri) {
-			var vevent = context.comp.getFirstSubcomponent('vevent');
-			context.uri = vevent.getFirstPropertyValue('uid');
-		}
-
-		context.calculateDTEnd = function (vevent) {
-			if (vevent.hasProperty('dtend')) {
-				return vevent.getFirstPropertyValue('dtend');
-			} else if (vevent.hasProperty('duration')) {
-				var dtstart = vevent.getFirstPropertyValue('dtstart').clone();
-				dtstart.addDuration(vevent.getFirstPropertyValue('duration'));
-
-				return dtstart;
-			} else {
-				return vevent.getFirstPropertyValue('dtstart').clone();
-			}
-		};
-
-		context.convertTz = function (dt, timezone) {
-			if (context.needsTzConversion(dt) && timezone) {
-				dt = dt.convertToZone(timezone);
-			}
-
-			return dt;
-		};
-
-		context.needsTzConversion = function (dt) {
-			return dt.icaltype !== 'date' && dt.zone !== ICAL.Timezone.utcTimezone && dt.zone !== ICAL.Timezone.localTimezone;
-		};
-
-		context.getMissingEventTimezones = function () {
-			var missingTimezones = [];
-			var propertiesToSearch = ['dtstart', 'dtend'];
-			var vevents = context.comp.getAllSubcomponents('vevent');
-			vevents.forEach(function (vevent) {
-				propertiesToSearch.forEach(function (propName) {
-					if (vevent.hasProperty(propName)) {
-						var prop = vevent.getFirstProperty(propName);
-						var tzid = prop.getParameter('tzid');
-						if (tzid && !ICAL.TimezoneService.has(tzid) && missingTimezones.indexOf(tzid) === -1) {
-							missingTimezones.push(tzid);
-						}
-					}
-				});
-			});
-
-			return missingTimezones;
-		};
-
-		Object.defineProperties(iface, {
-			calendar: {
-				get: function get() {
-					return context.calendar;
-				},
-				set: function set(calendar) {
-					context.calendar = calendar;
-				}
-			},
-			comp: {
-				get: function get() {
-					return context.comp;
-				}
-			},
-			data: {
-				get: function get() {
-					return context.comp.toString();
-				}
-			},
-			etag: {
-				get: function get() {
-					return context.etag;
-				},
-				set: function set(etag) {
-					context.etag = etag;
-				}
-			},
-			uri: {
-				get: function get() {
-					return context.uri;
-				}
-			}
-		});
-
-		iface.getFcEvent = function (start, end, timezone) {
-			return new Promise(function (resolve, reject) {
-				var iCalStart = ICAL.Time.fromJSDate(start.toDate());
-				var iCalEnd = ICAL.Time.fromJSDate(end.toDate());
-				var fcEvents = [];
-
-				var missingTimezones = context.getMissingEventTimezones();
-				var errorSafeMissingTimezones = [];
-				missingTimezones.forEach(function (missingTimezone) {
-					var promise = TimezoneService.get(missingTimezone).then(function (tz) {
-						return tz;
-					}).catch(function (reason) {
-						return null;
-					});
-					errorSafeMissingTimezones.push(promise);
-				});
-
-				Promise.all(errorSafeMissingTimezones).then(function (timezones) {
-					timezones.forEach(function (timezone) {
-						if (!timezone) {
-							return;
-						}
-
-						var icalTimezone = new ICAL.Timezone(timezone.jCal);
-						ICAL.TimezoneService.register(timezone.name, icalTimezone);
-					});
-				}).then(function () {
-					var vevents = context.comp.getAllSubcomponents('vevent');
-					vevents.forEach(function (vevent) {
-						var iCalEvent = new ICAL.Event(vevent);
-
-						if (!vevent.hasProperty('dtstart')) {
-							return;
-						}
-
-						var dtstartProp = vevent.getFirstProperty('dtstart');
-						var rawDtstart = dtstartProp.getFirstValue('dtstart');
-						var rawDtend = context.calculateDTEnd(vevent);
-
-						if (iCalEvent.isRecurring()) {
-							var duration = rawDtend.subtractDate(rawDtstart);
-							var iterator = new ICAL.RecurExpansion({
-								component: vevent,
-								dtstart: rawDtstart
-							});
-
-							var next = void 0;
-							while (next = iterator.next()) {
-								var singleDtStart = next.clone();
-								var singleDtEnd = next.clone();
-								singleDtEnd.addDuration(duration);
-
-								if (singleDtEnd.compare(iCalStart) < 0) {
-									continue;
-								}
-								if (next.compare(iCalEnd) > 0) {
-									break;
-								}
-
-								var dtstart = context.convertTz(singleDtStart, timezone.jCal);
-								var dtend = context.convertTz(singleDtEnd, timezone.jCal);
-								var fcEvent = FcEvent(iface, vevent, dtstart, dtend);
-
-								fcEvents.push(fcEvent);
-							}
-						} else {
-							var _dtstart = context.convertTz(rawDtstart, timezone.jCal);
-							var _dtend = context.convertTz(rawDtend, timezone.jCal);
-							var _fcEvent = FcEvent(iface, vevent, _dtstart, _dtend);
-
-							fcEvents.push(_fcEvent);
-						}
-					});
-
-					resolve(fcEvents);
-				});
-			});
-		};
-
-		iface.getSimpleEvent = function (searchedRecurrenceId) {
-			var vevents = context.comp.getAllSubcomponents('vevent');
-
-			var veventsLength = vevents.length;
-			for (var i = 0; i < veventsLength; i++) {
-				var _vevent = vevents[i];
-				var hasRecurrenceId = _vevent.hasProperty('recurrence-id');
-				var recurrenceId = null;
-				if (hasRecurrenceId) {
-					recurrenceId = _vevent.getFirstPropertyValue('recurrence-id').toICALString();
-				}
-
-				if (!hasRecurrenceId && !searchedRecurrenceId || hasRecurrenceId && searchedRecurrenceId === recurrenceId) {
-					return SimpleEvent(_vevent);
-				}
-			}
-
-			throw new Error('Event not found');
-		};
-
-		iface.touch = function () {
-			var vevent = context.comp.getFirstSubcomponent('vevent');
-			vevent.updatePropertyWithValue('last-modified', ICAL.Time.now());
-		};
-
-		return iface;
-	}
-
-	VEvent.isVEvent = function (obj) {
-		return (typeof obj === 'undefined' ? 'undefined' : _typeof(obj)) === 'object' && obj !== null && obj._isAVEventObject === true;
-	};
-
-	VEvent.sanDate = function (ics) {
-		ics.split("\n").forEach(function (el, i) {
-
-			var findTypes = ['DTSTART', 'DTEND'];
-			var dateType = /[^:]*/.exec(el)[0];
-			var icsDate = null;
-
-			if (findTypes.indexOf(dateType) >= 0 && el.trim().substr(-3) === 'T::') {
-				icsDate = el.replace(/[^0-9]/g, '');
-				ics = ics.replace(el, dateType + ';VALUE=DATE:' + icsDate);
-			}
-		});
-
-		return ics;
-	};
-
-	VEvent.sanTrigger = function (ics) {
-		var regex = /^TRIGGER:P$/gm;
-		if (ics.match(regex)) {
-			ics = ics.replace(regex, 'TRIGGER:P0D');
-		}
-
-		return ics;
-	};
-
-	VEvent.fromRawICS = function (calendar, ics, uri) {
-		var etag = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : '';
-
-		var comp = void 0;
-
-		if (ics.search('T::') > 0) {
-			ics = VEvent.sanDate(ics);
-		}
-
-		if (ics.search('TRIGGER:P') > 0) {
-			ics = VEvent.sanTrigger(ics);
-		}
-
-		try {
-			var jCal = ICAL.parse(ics);
-			comp = new ICAL.Component(jCal);
-		} catch (e) {
-			console.log(e);
-			throw new TypeError('given ics data was not valid');
-		}
-
-		return VEvent(calendar, comp, uri, etag);
-	};
-
-	VEvent.fromStartEnd = function (start, end, timezone) {
-		var uid = StringUtility.uid();
-		var comp = ICalFactory.newEvent(uid);
-		var uri = StringUtility.uid('Nextcloud', 'ics');
-		var vevent = VEvent(null, comp, uri);
-		var simple = vevent.getSimpleEvent();
-
-		simple.allDay = !start.hasTime() && !end.hasTime();
-		simple.dtstart = {
-			type: start.hasTime() ? 'datetime' : 'date',
-			value: start,
-			parameters: {
-				zone: timezone
-			}
-		};
-		simple.dtend = {
-			type: end.hasTime() ? 'datetime' : 'date',
-			value: end,
-			parameters: {
-				zone: timezone
-			}
-		};
-		simple.patch();
-
-		return vevent;
-	};
-
-	return VEvent;
-}]);
-'use strict';
-
-var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
-
-var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
-
-
-app.factory('WebCal', ["$http", "Calendar", "VEvent", "TimezoneService", "WebCalService", "WebCalUtility", function ($http, Calendar, VEvent, TimezoneService, WebCalService, WebCalUtility) {
-	'use strict';
-
-
-	function WebCal(CalendarService, url, props) {
-		var context = {
-			calendarService: CalendarService,
-			updatedProperties: [],
-			storedUrl: props.href, 
-			url: WebCalUtility.fixURL(props.href)
-		};
-
-		var iface = Calendar(CalendarService, url, props);
-		iface._isAWebCalObject = true;
-
-		context.setUpdated = function (property) {
-			if (context.updatedProperties.indexOf(property) === -1) {
-				context.updatedProperties.push(property);
-			}
-		};
-
-		Object.defineProperties(iface, {
-			downloadUrl: {
-				get: function get() {
-					return context.url;
-				}
-			},
-			storedUrl: {
-				get: function get() {
-					return context.storedUrl;
-				}
-			}
-		});
-
-		iface.fcEventSource.events = function (start, end, timezone, callback) {
-			var fcAPI = this;
-			iface.fcEventSource.isRendering = true;
-			iface.emit(Calendar.hookFinishedRendering);
-
-			var allowDowngradeToHttp = !context.storedUrl.startsWith('https://');
-
-			var TimezoneServicePromise = TimezoneService.get(timezone);
-			var WebCalServicePromise = WebCalService.get(context.url, allowDowngradeToHttp);
-			Promise.all([TimezoneServicePromise, WebCalServicePromise]).then(function (results) {
-				var _results = _slicedToArray(results, 2),
-				    tz = _results[0],
-				    response = _results[1];
-
-				var promises = [];
-				var vevents = [];
-
-				response.vevents.forEach(function (ics) {
-					try {
-						var vevent = VEvent.fromRawICS(iface, ics);
-						var promise = vevent.getFcEvent(start, end, tz).then(function (vevent) {
-							vevents = vevents.concat(vevent);
-						}).catch(function (reason) {
-							iface.addWarning(reason);
-							console.log(event, reason);
-						});
-
-						promises.push(promise);
-					} catch (e) {
-						console.log(e);
-					}
-				});
-
-				return Promise.all(promises).then(function () {
-					callback(vevents);
-					fcAPI.reportEventChange();
-
-					iface.fcEventSource.isRendering = false;
-					iface.emit(Calendar.hookFinishedRendering);
-				});
-			}).catch(function (reason) {
-				if (reason === 'Unknown timezone' && timezone !== 'UTC') {
-					var eventsFn = iface.fcEventSource.events.bind(fcAPI);
-					eventsFn(start, end, 'UTC', callback);
-				} else if (reason.redirect === true) {
-					if (context.storedUrl === reason.new_url) {
-						return Promise.reject('Fatal error. Redirected URL matched original URL. Aborting');
-					}
-
-					context.storedUrl = reason.new_url;
-					context.url = reason.new_url;
-					context.setUpdated('storedUrl');
-					iface.update();
-					var _eventsFn = iface.fcEventSource.events.bind(fcAPI);
-					_eventsFn(start, end, timezone, callback);
-				} else {
-					iface.addWarning(reason);
-					console.log(reason);
-					iface.fcEventSource.isRendering = false;
-					iface.emit(Calendar.hookFinishedRendering);
-				}
-			});
-		};
-
-		iface.eventsAccessibleViaCalDAV = function () {
-			return false;
-		};
-
-		var parentGetUpdated = iface.getUpdated;
-		iface.getUpdated = function () {
-			var updated = parentGetUpdated();
-			return updated.concat(context.updatedProperties);
-		};
-
-		var parentResetUpdated = iface.resetUpdated;
-		iface.resetUpdated = function () {
-			parentResetUpdated();
-			context.updatedProperties = [];
-		};
-
-		iface.delete = function () {
-			localStorage.removeItem(iface.storedUrl);
-			return context.calendarService.delete(iface);
-		};
-
-		return iface;
-	}
-
-	WebCal.isWebCal = function (obj) {
-		return (typeof obj === 'undefined' ? 'undefined' : _typeof(obj)) === 'object' && obj !== null && obj._isAWebCalObject === true;
-	};
-
-	return WebCal;
-}]);
-'use strict';
-
 
 app.service('AutoCompletionService', ['$rootScope', '$http', function ($rootScope, $http) {
   'use strict';
@@ -4642,7 +4767,7 @@ app.service('CalendarService', ["DavClient", "StringUtility", "XMLUtility", "Cal
 	var privateAPI = {};
 	this.privateAPI = privateAPI;
 
-	var PROPERTIES = ['{' + DavClient.NS_DAV + '}displayname', '{' + DavClient.NS_DAV + '}resourcetype', '{' + DavClient.NS_IETF + '}calendar-description', '{' + DavClient.NS_IETF + '}calendar-timezone', '{' + DavClient.NS_APPLE + '}calendar-order', '{' + DavClient.NS_APPLE + '}calendar-color', '{' + DavClient.NS_IETF + '}supported-calendar-component-set', '{' + DavClient.NS_CALENDARSERVER + '}publish-url', '{' + DavClient.NS_CALENDARSERVER + '}allowed-sharing-modes', '{' + DavClient.NS_OWNCLOUD + '}calendar-enabled', '{' + DavClient.NS_DAV + '}acl', '{' + DavClient.NS_DAV + '}owner', '{' + DavClient.NS_OWNCLOUD + '}invite', '{' + DavClient.NS_CALENDARSERVER + '}source'];
+	var PROPERTIES = ['{' + DavClient.NS_DAV + '}displayname', '{' + DavClient.NS_DAV + '}resourcetype', '{' + DavClient.NS_IETF + '}calendar-description', '{' + DavClient.NS_IETF + '}calendar-timezone', '{' + DavClient.NS_APPLE + '}calendar-order', '{' + DavClient.NS_APPLE + '}calendar-color', '{' + DavClient.NS_IETF + '}supported-calendar-component-set', '{' + DavClient.NS_CALENDARSERVER + '}publish-url', '{' + DavClient.NS_CALENDARSERVER + '}allowed-sharing-modes', '{' + DavClient.NS_OWNCLOUD + '}calendar-enabled', '{' + DavClient.NS_DAV + '}acl', '{' + DavClient.NS_DAV + '}owner', '{' + DavClient.NS_OWNCLOUD + '}invite', '{' + DavClient.NS_CALENDARSERVER + '}source', '{' + DavClient.NS_NEXTCLOUD + '}owner-displayname'];
 
 	var CALENDAR_IDENTIFIER = '{' + DavClient.NS_IETF + '}calendar';
 	var WEBCAL_IDENTIFIER = '{' + DavClient.NS_CALENDARSERVER + '}subscribed';
@@ -5131,7 +5256,7 @@ app.service('CalendarService', ["DavClient", "StringUtility", "XMLUtility", "Cal
 				var index = calendar.shares.users.findIndex(function (user) {
 					return user.id === shareWith;
 				});
-				calendar.shares.user.splice(index, 1);
+				calendar.shares.users.splice(index, 1);
 			} else {
 				var _index = calendar.shares.groups.findIndex(function (group) {
 					return group.id === shareWith;
