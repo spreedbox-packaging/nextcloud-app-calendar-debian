@@ -1,6 +1,6 @@
 --- a/appinfo/info.xml
 +++ b/appinfo/info.xml
-@@ -17,6 +17,7 @@
+@@ -21,6 +21,7 @@
  	<screenshot>https://raw.githubusercontent.com/nextcloud/calendar/master/screenshots/2.png</screenshot>
  	<screenshot>https://raw.githubusercontent.com/nextcloud/calendar/master/screenshots/3.png</screenshot>
  	<screenshot>https://raw.githubusercontent.com/nextcloud/calendar/master/screenshots/4.png</screenshot>
