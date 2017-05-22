@@ -56,6 +56,25 @@ foreach ($scripts as $script) {
 	script('calendar', $script);
 }
 ?>
+<?php if($_['isPublic'] && !$_['isEmbedded']): ?>
+<style>
+	@media only screen and (max-width: 768px) {
+		#app-navigation, #app-content {
+			top: 45px !important;
+		}
+	}
+</style>
+<?php endif; ?>
+
+<?php if($_['isEmbedded']): ?>
+<style>
+	@media only screen and (max-width: 768px) {
+		#app-navigation-toggle {
+			top: 0 !important;
+		}
+	}
+</style>
+<?php endif; ?>
 <div class="app" ng-app="Calendar" ng-controller="CalController">
 
 	<!-- The Left Calendar Navigation -->
@@ -100,6 +119,10 @@ foreach ($scripts as $script) {
 	<div id="importpopover-container"></div>
 	<?php endif; ?>
 
+	<div id="emptycontent-container">
+		<?php print_unescaped($this->inc('part.emptycontent')); ?>
+	</div>
+
 	<script type="text/ng-template" id="eventspopovereditor.html">
 		<?php print_unescaped($this->inc('editor.popover')); ?>
 	</script>
@@ -118,6 +141,17 @@ foreach ($scripts as $script) {
 		<span class="confirmation-confirm icon-delete-white svg no-permission">
     		<span class="countdown">3</span>
 		</span>
+	</script>
+
+	<script type="text/ng-template" id="customShareMatchTemplate.html">
+		<a tabindex="-1"
+		   ng-attr-title="{{ match.label }}">
+			<div class="share-autocomplete-item" title="{{ match.label }}">
+				<div class="avatardiv" data-user="{{ match.model.identifier }}" avatar></div>
+				<div class="autocomplete-item-text" ng-bind-html="match.label | uibTypeaheadHighlight:query"></div>
+			</div>
+
+		</a>
 	</script>
 
 	<?php if(!$_['isPublic']): ?>
