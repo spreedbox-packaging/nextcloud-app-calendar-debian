@@ -1,3 +1,10 @@
+nextcloud-app-calendar (1.5.4-1) trusty; urgency=medium
+
+  * Imported Upstream version 1.5.4
+  * Update patch for new upstream version.
+
+ -- Joachim Bauch <bauch@struktur.de>  Wed, 13 Sep 2017 08:37:13 +0200
+
 nextcloud-app-calendar (1.5.3-1) trusty; urgency=medium
 
   * Imported Upstream version 1.5.3
