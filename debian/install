@@ -6,4 +6,3 @@ img/*  usr/lib/nextcloud/www/apps/calendar/img
 js/*  usr/lib/nextcloud/www/apps/calendar/js
 l10n/*  usr/lib/nextcloud/www/apps/calendar/l10n
 templates/*  usr/lib/nextcloud/www/apps/calendar/templates
-timezones/*  usr/lib/nextcloud/www/apps/calendar/timezones
