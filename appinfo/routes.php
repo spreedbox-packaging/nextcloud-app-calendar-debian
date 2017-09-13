@@ -26,14 +26,11 @@ return [
 		//Main view
 		['name' => 'view#index', 'url' => '/', 'verb' => 'GET'],
 		['name' => 'view#public_index_with_branding', 'url' => '/p/{token}', 'verb' => 'GET'],
+		['name' => 'view#public_index_with_branding_and_fancy_name', 'url' => '/p/{token}/{fancyName}', 'verb' => 'GET'],
 		['name' => 'view#public_index_for_embedding', 'url' => '/embed/{token}', 'verb' => 'GET'],
 		['name' => 'view#public_index_for_embedding_legacy', 'url' => '/public/{token}', 'verb' => 'GET'], // keep public/ for legacy reasons
 		// Tools
 		['name' => 'email#sendEmailPublicLink', 'url' => '/v1/public/sendmail', 'verb' => 'POST'],
-		//Timezones
-		['name' => 'timezone#get_timezone', 'url' => '/v1/timezones/{id}', 'verb' => 'GET'],
-		['name' => 'timezone#get_timezone_with_region', 'url' => '/v1/timezones/{region}/{city}', 'verb' => 'GET'],
-		['name' => 'timezone#get_timezone_with_subregion', 'url' => '/v1/timezones/{region}/{subregion}/{city}', 'verb' => 'GET'],
 		//Settings
 		['name' => 'settings#getConfig', 'url' => '/v1/config', 'verb' => 'GET'],
 		['name' => 'settings#setConfig', 'url' => '/v1/config', 'verb' => 'POST'],
